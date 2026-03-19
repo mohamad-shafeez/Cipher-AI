@@ -1,0 +1,6 @@
+echo __pycache__/ > .gitignore
+echo *.pyc >> .gitignore
+echo .env >> .gitignore
+echo data/logs.txt >> .gitignore
+echo input.wav >> .gitignore
+echo temp_input.wav >> .gitignore

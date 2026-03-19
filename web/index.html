@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CIPHER — AI Voice Assistant</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@300;400;500;600;700&family=Orbitron:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#000;--surface:#0a0a0a;--accent:#00fff7;--accent2:#ff00ff;--text:#e0e0e0;--muted:#444;--glow:0 0 20px var(--accent),0 0 40px var(--accent)}
+[data-theme="purple"]{--accent:#bf00ff;--accent2:#00cfff;--glow:0 0 20px #bf00ff,0 0 40px #bf00ff}
+[data-theme="green"]{--accent:#00ff41;--accent2:#ff6b00;--glow:0 0 20px #00ff41,0 0 40px #00ff41}
+[data-theme="gold"]{--accent:#ffd700;--accent2:#ff4444;--glow:0 0 20px #ffd700,0 0 40px #ffd700}
+[data-theme="cyan"]{--accent:#00fff7;--accent2:#ff00ff;--glow:0 0 20px #00fff7,0 0 40px #00fff7}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:'Rajdhani',sans-serif;overflow-x:hidden;cursor:none}
+.cursor{width:12px;height:12px;background:var(--accent);border-radius:50%;position:fixed;pointer-events:none;z-index:9999;transition:transform .1s;box-shadow:var(--glow)}
+.cursor-ring{width:36px;height:36px;border:1px solid var(--accent);border-radius:50%;position:fixed;pointer-events:none;z-index:9998;transition:all .15s ease;opacity:.5}
+body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,255,247,.015) 2px,rgba(0,255,247,.015) 4px);pointer-events:none;z-index:1000;animation:scanlines 8s linear infinite}
+@keyframes scanlines{from{background-position:0 0}to{background-position:0 100px}}
+nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:1rem 2rem;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(0,255,247,.1);backdrop-filter:blur(10px);background:rgba(0,0,0,.8)}
+.nav-logo{font-family:'Orbitron',monospace;font-size:1.2rem;font-weight:900;color:var(--accent);text-shadow:var(--glow);letter-spacing:4px}
+.nav-links{display:flex;gap:2rem;list-style:none}
+.nav-links a{color:var(--muted);text-decoration:none;font-size:.85rem;letter-spacing:2px;text-transform:uppercase;transition:color .3s;font-family:'Share Tech Mono',monospace}
+.nav-links a:hover{color:var(--accent);text-shadow:var(--glow)}
+.theme-switcher{display:flex;gap:8px;align-items:center}
+.theme-btn{width:20px;height:20px;border-radius:50%;border:2px solid transparent;cursor:pointer;transition:all .3s}
+.theme-btn:hover,.theme-btn.active{border-color:white;transform:scale(1.2)}
+.theme-btn[data-theme="cyan"]{background:#00fff7}
+.theme-btn[data-theme="purple"]{background:#bf00ff}
+.theme-btn[data-theme="green"]{background:#00ff41}
+.theme-btn[data-theme="gold"]{background:#ffd700}
+#hero{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;overflow:hidden;padding:6rem 2rem 2rem}
+.style-selector{position:absolute;top:90px;right:2rem;display:flex;flex-direction:column;gap:8px;z-index:10}
+.style-btn{background:rgba(0,255,247,.05);border:1px solid rgba(0,255,247,.2);color:var(--muted);padding:6px 12px;font-family:'Share Tech Mono',monospace;font-size:.7rem;cursor:pointer;transition:all .3s;letter-spacing:1px}
+.style-btn:hover,.style-btn.active{border-color:var(--accent);color:var(--accent);box-shadow:var(--glow)}
+#visual-canvas{position:absolute;inset:0;z-index:0}
+.hero-content{position:relative;z-index:2;text-align:center}
+.hero-badge{display:inline-block;border:1px solid var(--accent);color:var(--accent);font-family:'Share Tech Mono',monospace;font-size:.7rem;padding:4px 16px;letter-spacing:4px;margin-bottom:2rem;animation:pulse-border 2s infinite}
+@keyframes pulse-border{0%,100%{box-shadow:0 0 5px var(--accent)}50%{box-shadow:var(--glow)}}
+.hero-title{font-family:'Orbitron',monospace;font-size:clamp(4rem,12vw,9rem);font-weight:900;color:var(--accent);text-shadow:var(--glow);letter-spacing:8px;line-height:1;animation:flicker 6s infinite;margin-bottom:.5rem;position:relative}
+@keyframes flicker{0%,95%,100%{opacity:1}96%{opacity:.7}97%{opacity:1}98%{opacity:.4}99%{opacity:1}}
+.glitch::before,.glitch::after{content:attr(data-text);position:absolute;top:0;left:0;width:100%;height:100%;font-family:inherit;font-size:inherit;font-weight:inherit;letter-spacing:inherit}
+.glitch::before{color:var(--accent2);animation:glitch1 4s infinite;clip-path:polygon(0 30%,100% 30%,100% 50%,0 50%)}
+.glitch::after{color:#0ff;animation:glitch2 4s infinite;clip-path:polygon(0 60%,100% 60%,100% 80%,0 80%)}
+@keyframes glitch1{0%,90%,100%{transform:translate(0)}92%{transform:translate(-3px,1px)}94%{transform:translate(3px,-1px)}}
+@keyframes glitch2{0%,90%,100%{transform:translate(0)}91%{transform:translate(3px,1px)}93%{transform:translate(-3px,-1px)}}
+.hero-subtitle{font-family:'Share Tech Mono',monospace;font-size:clamp(.8rem,2vw,1rem);color:var(--muted);letter-spacing:6px;text-transform:uppercase;margin-bottom:3rem}
+#waveform-container{width:min(600px,90vw);height:80px;margin:2rem auto;position:relative}
+#waveform{width:100%;height:100%}
+.status-bar{display:flex;align-items:center;gap:1rem;justify-content:center;margin:1rem 0 2rem;font-family:'Share Tech Mono',monospace;font-size:.8rem;color:var(--muted)}
+.status-dot{width:8px;height:8px;border-radius:50%;background:var(--accent);animation:blink 1.5s infinite;box-shadow:var(--glow)}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+.speak-btn{position:relative;width:120px;height:120px;border-radius:50%;border:2px solid var(--accent);background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;margin:0 auto 2rem;transition:all .3s;box-shadow:var(--glow)}
+.speak-btn::before{content:'';position:absolute;inset:-8px;border-radius:50%;border:1px solid rgba(0,255,247,.3);animation:orbit 3s linear infinite}
+.speak-btn::after{content:'';position:absolute;inset:-16px;border-radius:50%;border:1px solid rgba(0,255,247,.1);animation:orbit 5s linear infinite reverse}
+@keyframes orbit{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+.speak-btn:hover{transform:scale(1.05);box-shadow:0 0 40px var(--accent),0 0 80px var(--accent)}
+.speak-btn.listening{animation:pulse-btn .5s infinite alternate}
+@keyframes pulse-btn{from{transform:scale(1)}to{transform:scale(1.1)}}
+.mic-icon{font-size:2.5rem;color:var(--accent);text-shadow:var(--glow)}
+.speak-label{font-family:'Share Tech Mono',monospace;font-size:.75rem;color:var(--muted);letter-spacing:3px;text-transform:uppercase}
+.hero-stats{display:flex;gap:3rem;justify-content:center;margin-top:3rem;flex-wrap:wrap}
+.stat{text-align:center;border:1px solid rgba(0,255,247,.1);padding:1rem 1.5rem;background:rgba(0,255,247,.02)}
+.stat-num{font-family:'Orbitron',monospace;font-size:2rem;font-weight:700;color:var(--accent);text-shadow:var(--glow);display:block}
+.stat-label{font-family:'Share Tech Mono',monospace;font-size:.65rem;color:var(--muted);letter-spacing:2px;text-transform:uppercase}
+section{padding:6rem 2rem;position:relative}
+.section-header{text-align:center;margin-bottom:4rem}
+.section-tag{font-family:'Share Tech Mono',monospace;font-size:.7rem;color:var(--accent);letter-spacing:4px;text-transform:uppercase;margin-bottom:1rem;display:block}
+.section-title{font-family:'Orbitron',monospace;font-size:clamp(1.5rem,4vw,2.5rem);font-weight:700;color:white;letter-spacing:3px}
+.section-line{width:60px;height:2px;background:var(--accent);box-shadow:var(--glow);margin:1.5rem auto 0}
+.skills-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.5rem;max-width:1200px;margin:0 auto}
+.skill-card{border:1px solid rgba(0,255,247,.1);background:rgba(0,255,247,.02);padding:2rem;position:relative;overflow:hidden;transition:all .3s;cursor:default}
+.skill-card::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%;background:var(--accent);box-shadow:var(--glow)}
+.skill-card:hover{border-color:var(--accent);transform:translateY(-4px);box-shadow:0 8px 30px rgba(0,255,247,.1)}
+.skill-icon{font-size:2rem;margin-bottom:1rem;display:block}
+.skill-name{font-family:'Orbitron',monospace;font-size:.85rem;font-weight:600;color:var(--accent);letter-spacing:2px;text-transform:uppercase;margin-bottom:.75rem}
+.skill-desc{font-size:.9rem;color:var(--muted);line-height:1.6;margin-bottom:1rem}
+.skill-commands{display:flex;flex-wrap:wrap;gap:6px}
+.cmd-tag{font-family:'Share Tech Mono',monospace;font-size:.65rem;background:rgba(0,255,247,.05);border:1px solid rgba(0,255,247,.15);color:var(--accent);padding:3px 8px;letter-spacing:1px}
+#terminal{background:rgba(0,5,0,.9);border:1px solid var(--accent);box-shadow:var(--glow);max-width:800px;margin:0 auto;font-family:'Share Tech Mono',monospace;overflow:hidden}
+.terminal-bar{background:rgba(0,255,247,.05);padding:.75rem 1rem;display:flex;align-items:center;gap:8px;border-bottom:1px solid rgba(0,255,247,.1)}
+.terminal-dot{width:12px;height:12px;border-radius:50%}
+.t-red{background:#ff5f57}.t-yellow{background:#febc2e}.t-green{background:#28c840}
+.terminal-title{margin-left:auto;font-size:.75rem;color:var(--muted);letter-spacing:2px}
+.terminal-body{padding:1.5rem;min-height:300px;font-size:.85rem;line-height:2}
+.t-line{display:flex;gap:1rem;align-items:flex-start;margin-bottom:4px}
+.t-prefix{color:var(--accent);min-width:80px}
+.t-text{color:#c0c0c0}
+.t-text.response{color:var(--accent2)}
+.t-text.system{color:var(--accent);opacity:.6}
+.tech-grid{display:flex;flex-wrap:wrap;gap:1rem;justify-content:center;max-width:900px;margin:0 auto}
+.tech-badge{border:1px solid rgba(0,255,247,.2);background:rgba(0,255,247,.03);padding:.75rem 1.5rem;font-family:'Share Tech Mono',monospace;font-size:.8rem;color:var(--text);letter-spacing:2px;transition:all .3s;position:relative;overflow:hidden}
+.tech-badge::before{content:'';position:absolute;top:0;left:-100%;width:100%;height:100%;background:linear-gradient(90deg,transparent,rgba(0,255,247,.1),transparent);transition:left .5s}
+.tech-badge:hover{border-color:var(--accent);color:var(--accent)}
+.tech-badge:hover::before{left:100%}
+#about{background:rgba(0,255,247,.01);border-top:1px solid rgba(0,255,247,.05);border-bottom:1px solid rgba(0,255,247,.05)}
+.about-grid{display:grid;grid-template-columns:1fr 2fr;gap:4rem;max-width:1000px;margin:0 auto;align-items:center}
+@media(max-width:768px){.about-grid{grid-template-columns:1fr}.nav-links{display:none}}
+.about-avatar{width:200px;height:200px;border:2px solid var(--accent);box-shadow:var(--glow);display:flex;align-items:center;justify-content:center;font-size:5rem;margin:0 auto;position:relative;background:rgba(0,255,247,.02)}
+.about-avatar::before{content:'';position:absolute;inset:-8px;border:1px solid rgba(0,255,247,.2);animation:spin 8s linear infinite}
+@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+.about-name{font-family:'Orbitron',monospace;font-size:1.5rem;font-weight:700;color:white;letter-spacing:3px;margin-bottom:.5rem}
+.about-role{font-family:'Share Tech Mono',monospace;font-size:.8rem;color:var(--accent);letter-spacing:3px;text-transform:uppercase;margin-bottom:1.5rem}
+.about-bio{color:var(--muted);line-height:1.8;margin-bottom:2rem;font-size:1rem}
+.about-links{display:flex;gap:1rem;flex-wrap:wrap}
+.about-link{border:1px solid rgba(0,255,247,.3);color:var(--accent);text-decoration:none;padding:8px 20px;font-family:'Share Tech Mono',monospace;font-size:.75rem;letter-spacing:2px;transition:all .3s;text-transform:uppercase}
+.about-link:hover{background:var(--accent);color:black;box-shadow:var(--glow)}
+footer{padding:3rem 2rem;text-align:center;border-top:1px solid rgba(0,255,247,.05)}
+.footer-logo{font-family:'Orbitron',monospace;font-size:2rem;font-weight:900;color:var(--accent);text-shadow:var(--glow);letter-spacing:8px;margin-bottom:1rem}
+.footer-text{font-family:'Share Tech Mono',monospace;font-size:.7rem;color:var(--muted);letter-spacing:3px}
+.reveal{opacity:0;transform:translateY(30px);transition:all .8s ease}
+.reveal.visible{opacity:1;transform:translateY(0)}
+</style>
+</head>
+<body data-theme="cyan">
+<div class="cursor" id="cursor"></div>
+<div class="cursor-ring" id="cursor-ring"></div>
+<nav>
+  <div class="nav-logo">CIPHER</div>
+  <ul class="nav-links">
+    <li><a href="#skills">Skills</a></li>
+    <li><a href="#demo">Demo</a></li>
+    <li><a href="#tech">Stack</a></li>
+    <li><a href="#about">Developer</a></li>
+  </ul>
+  <div class="theme-switcher">
+    <button class="theme-btn active" data-theme="cyan" title="Cyan"></button>
+    <button class="theme-btn" data-theme="purple" title="Purple"></button>
+    <button class="theme-btn" data-theme="green" title="Matrix"></button>
+    <button class="theme-btn" data-theme="gold" title="Gold"></button>
+  </div>
+</nav>
+<section id="hero">
+  <canvas id="visual-canvas"></canvas>
+  <div class="style-selector">
+    <button class="style-btn active" data-style="waveform">WAVEFORM</button>
+    <button class="style-btn" data-style="orb">ORB</button>
+    <button class="style-btn" data-style="matrix">MATRIX</button>
+    <button class="style-btn" data-style="hud">HUD</button>
+  </div>
+  <div class="hero-content">
+    <div class="hero-badge">// VOICE AI ASSISTANT v2.0</div>
+    <h1 class="hero-title glitch" data-text="CIPHER">CIPHER</h1>
+    <p class="hero-subtitle">INTELLIGENT — AUTONOMOUS — ALWAYS LISTENING</p>
+    <div id="waveform-container"><canvas id="waveform"></canvas></div>
+    <div class="status-bar">
+      <div class="status-dot"></div>
+      <span id="status-text">SYSTEM ONLINE — CLICK MIC TO DEMO</span>
+    </div>
+    <button class="speak-btn" id="speak-btn" onclick="toggleListen()">
+      <span class="mic-icon">🎙</span>
+    </button>
+    <p class="speak-label" id="speak-label">PRESS TO SPEAK</p>
+    <div class="hero-stats">
+      <div class="stat"><span class="stat-num">10+</span><span class="stat-label">Skill Modules</span></div>
+      <div class="stat"><span class="stat-num">50+</span><span class="stat-label">Voice Commands</span></div>
+      <div class="stat"><span class="stat-num">2</span><span class="stat-label">Devices Controlled</span></div>
+      <div class="stat"><span class="stat-num">100%</span><span class="stat-label">Offline AI</span></div>
+    </div>
+  </div>
+</section>
+<section id="skills">
+  <div class="section-header reveal">
+    <span class="section-tag">// CAPABILITIES</span>
+    <h2 class="section-title">SKILL MODULES</h2>
+    <div class="section-line"></div>
+  </div>
+  <div class="skills-grid">
+    <div class="skill-card reveal"><span class="skill-icon">🧠</span><div class="skill-name">AI Brain</div><div class="skill-desc">Local LLM powered by Ollama phi3.5. Responds intelligently to any query with real-time system context.</div><div class="skill-commands"><span class="cmd-tag">explain recursion</span><span class="cmd-tag">write a function</span><span class="cmd-tag">what is AI</span></div></div>
+    <div class="skill-card reveal"><span class="skill-icon">📱</span><div class="skill-name">Mobile Control</div><div class="skill-desc">Full Android phone control via ADB. Opens apps, makes calls, sends SMS, navigates maps on any Android device.</div><div class="skill-commands"><span class="cmd-tag">open instagram</span><span class="cmd-tag">call mom</span><span class="cmd-tag">navigate to airport</span></div></div>
+    <div class="skill-card reveal"><span class="skill-icon">💻</span><div class="skill-name">System Control</div><div class="skill-desc">Full Windows control. Volume, brightness, battery, screenshots, shutdown, CPU/RAM monitoring.</div><div class="skill-commands"><span class="cmd-tag">volume 50</span><span class="cmd-tag">screenshot</span><span class="cmd-tag">system info</span></div></div>
+    <div class="skill-card reveal"><span class="skill-icon">🌐</span><div class="skill-name">Browser & Research</div><div class="skill-desc">Searches Google, Wikipedia, YouTube, and News. Opens websites by voice command instantly.</div><div class="skill-commands"><span class="cmd-tag">open youtube</span><span class="cmd-tag">who is elon musk</span><span class="cmd-tag">news about india</span></div></div>
+    <div class="skill-card reveal"><span class="skill-icon">⌨️</span><div class="skill-name">Coding Assistant</div><div class="skill-desc">Opens VS Code, creates boilerplate files, runs Python/JS scripts, searches Stack Overflow by voice.</div><div class="skill-commands"><span class="cmd-tag">create python file</span><span class="cmd-tag">run main.py</span><span class="cmd-tag">open vs code</span></div></div>
+    <div class="skill-card reveal"><span class="skill-icon">💬</span><div class="skill-name">Communication</div><div class="skill-desc">Sends WhatsApp messages and emails. Makes calls via ADB. Full contact management by voice.</div><div class="skill-commands"><span class="cmd-tag">whatsapp mom saying hi</span><span class="cmd-tag">compose email</span><span class="cmd-tag">send sms to dad</span></div></div>
+    <div class="skill-card reveal"><span class="skill-icon">🗂️</span><div class="skill-name">File Management</div><div class="skill-desc">Create, delete, move, rename files and folders. Open any directory by voice. Zip and unzip files.</div><div class="skill-commands"><span class="cmd-tag">create folder</span><span class="cmd-tag">open downloads</span><span class="cmd-tag">delete temp files</span></div></div>
+    <div class="skill-card reveal"><span class="skill-icon">🪟</span><div class="skill-name">Window Manager</div><div class="skill-desc">Minimize, maximize, close windows. Switch between apps. Full desktop control by voice.</div><div class="skill-commands"><span class="cmd-tag">minimize window</span><span class="cmd-tag">close chrome</span><span class="cmd-tag">maximize</span></div></div>
+  </div>
+</section>
+<section id="demo">
+  <div class="section-header reveal">
+    <span class="section-tag">// LIVE DEMO</span>
+    <h2 class="section-title">CIPHER IN ACTION</h2>
+    <div class="section-line"></div>
+  </div>
+  <div id="terminal" class="reveal">
+    <div class="terminal-bar">
+      <div class="terminal-dot t-red"></div>
+      <div class="terminal-dot t-yellow"></div>
+      <div class="terminal-dot t-green"></div>
+      <span class="terminal-title">CIPHER_NEURAL_ASSISTANT.exe</span>
+    </div>
+    <div class="terminal-body" id="terminal-body"></div>
+  </div>
+</section>
+<section id="tech">
+  <div class="section-header reveal">
+    <span class="section-tag">// TECHNOLOGY</span>
+    <h2 class="section-title">BUILT WITH</h2>
+    <div class="section-line"></div>
+  </div>
+  <div class="tech-grid reveal">
+    <div class="tech-badge">Python 3.11</div><div class="tech-badge">Faster-Whisper</div>
+    <div class="tech-badge">Ollama phi3.5</div><div class="tech-badge">pyttsx3 TTS</div>
+    <div class="tech-badge">PyAudio</div><div class="tech-badge">ADB Android</div>
+    <div class="tech-badge">WhatsApp Web</div><div class="tech-badge">psutil</div>
+    <div class="tech-badge">pyautogui</div><div class="tech-badge">Wikipedia API</div>
+    <div class="tech-badge">thefuzz NLP</div><div class="tech-badge">Plugin Architecture</div>
+  </div>
+</section>
+<section id="about">
+  <div class="section-header reveal">
+    <span class="section-tag">// DEVELOPER</span>
+    <h2 class="section-title">BUILT BY</h2>
+    <div class="section-line"></div>
+  </div>
+  <div class="about-grid">
+    <div class="reveal"><div class="about-avatar">👨‍💻</div></div>
+    <div class="reveal">
+      <div class="about-name">MOHAMAD SHAFEEZ</div>
+      <div class="about-role">Full Stack Developer — MERN & AI Systems</div>
+      <p class="about-bio">Final-year BCA student at Srinivas University, Mangalore. Passionate about building AI-powered systems, secure backend architectures, and voice-driven interfaces. Cipher is a personal project combining local LLMs, real-time speech recognition, and cross-device automation — built entirely from scratch.</p>
+      <div class="about-links">
+        <a href="https://github.com/mohamad-shafeez" target="_blank" class="about-link">GitHub</a>
+        <a href="https://linkedin.com/in/mohamad-shafeez" target="_blank" class="about-link">LinkedIn</a>
+        <a href="mailto:shafeezchappi18@gmail.com" class="about-link">Contact</a>
+      </div>
+    </div>
+  </div>
+</section>
+<footer>
+  <div class="footer-logo">CIPHER</div>
+  <p class="footer-text">BUILT WITH PYTHON · WHISPER · OLLAMA · ADB · 2026</p>
+</footer>
+<script>
+const cursor=document.getElementById('cursor'),cursorRing=document.getElementById('cursor-ring');
+document.addEventListener('mousemove',e=>{cursor.style.left=e.clientX-6+'px';cursor.style.top=e.clientY-6+'px';cursorRing.style.left=e.clientX-18+'px';cursorRing.style.top=e.clientY-18+'px'});
+document.querySelectorAll('.theme-btn').forEach(btn=>{btn.addEventListener('click',()=>{document.body.setAttribute('data-theme',btn.dataset.theme);document.querySelectorAll('.theme-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active')})});
+const observer=new IntersectionObserver(entries=>{entries.forEach(e=>{if(e.isIntersecting)e.target.classList.add('visible')})},{threshold:.1});
+document.querySelectorAll('.reveal').forEach(el=>observer.observe(el));
+const waveCanvas=document.getElementById('waveform'),wCtx=waveCanvas.getContext('2d');
+let wavePhase=0,isListening=false;
+function drawWaveform(){
+  waveCanvas.width=waveCanvas.offsetWidth;waveCanvas.height=waveCanvas.offsetHeight;
+  const w=waveCanvas.width,h=waveCanvas.height;
+  wCtx.clearRect(0,0,w,h);
+  const accent=getComputedStyle(document.body).getPropertyValue('--accent').trim();
+  wCtx.strokeStyle=accent;wCtx.lineWidth=2;wCtx.shadowColor=accent;wCtx.shadowBlur=10;
+  wCtx.beginPath();
+  for(let i=0;i<=80;i++){
+    const x=(i/80)*w;
+    const amp=isListening?(Math.random()*.8+.2):(Math.sin(i*.3+wavePhase)*.3+.1);
+    const y=h/2+Math.sin(i*.4+wavePhase)*(h*.4)*amp;
+    i===0?wCtx.moveTo(x,y):wCtx.lineTo(x,y);
+  }
+  wCtx.stroke();wavePhase+=isListening?.15:.03;
+  requestAnimationFrame(drawWaveform);
+}
+drawWaveform();
+const canvas=document.getElementById('visual-canvas'),ctx=canvas.getContext('2d');
+let currentStyle='waveform';
+const particles=Array.from({length:100},()=>({x:Math.random()*window.innerWidth,y:Math.random()*window.innerHeight,vx:(Math.random()-.5)*.5,vy:(Math.random()-.5)*.5,size:Math.random()*2+.5,opacity:Math.random()}));
+const matrixCols=Math.floor(window.innerWidth/16);
+const matrixChars=Array.from({length:matrixCols},(_,i)=>({x:i*16,y:Math.random()*window.innerHeight,speed:Math.random()*3+1}));
+function resizeCanvas(){canvas.width=window.innerWidth;canvas.height=window.innerHeight}
+resizeCanvas();window.addEventListener('resize',resizeCanvas);
+function getAccent(){return getComputedStyle(document.body).getPropertyValue('--accent').trim()||'#00fff7'}
+function drawBg(){
+  const accent=getAccent();ctx.clearRect(0,0,canvas.width,canvas.height);
+  if(currentStyle==='waveform'){
+    for(let w=0;w<5;w++){ctx.beginPath();ctx.strokeStyle=accent;ctx.globalAlpha=.05+w*.03;ctx.lineWidth=1;for(let x=0;x<canvas.width;x++){const y=canvas.height/2+Math.sin(x*.01+wavePhase+w)*(50+w*30)+Math.sin(x*.02-wavePhase*1.3)*20;x===0?ctx.moveTo(x,y):ctx.lineTo(x,y)}ctx.stroke()}ctx.globalAlpha=1;
+  }else if(currentStyle==='orb'){
+    const cx=canvas.width/2,cy=canvas.height/2,grad=ctx.createRadialGradient(cx,cy,0,cx,cy,300);
+    grad.addColorStop(0,accent+'30');grad.addColorStop(.5,accent+'10');grad.addColorStop(1,'transparent');
+    ctx.fillStyle=grad;ctx.beginPath();ctx.arc(cx,cy,300,0,Math.PI*2);ctx.fill();
+    particles.forEach(p=>{p.x+=p.vx;p.y+=p.vy;if(p.x<0||p.x>canvas.width)p.vx*=-1;if(p.y<0||p.y>canvas.height)p.vy*=-1;ctx.beginPath();ctx.arc(p.x,p.y,p.size,0,Math.PI*2);ctx.fillStyle=accent;ctx.globalAlpha=p.opacity*.5;ctx.fill()});ctx.globalAlpha=1;
+  }else if(currentStyle==='matrix'){
+    ctx.fillStyle='rgba(0,0,0,0.05)';ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle=accent;ctx.font='14px Share Tech Mono';ctx.globalAlpha=.3;
+    matrixChars.forEach(col=>{ctx.fillText(String.fromCharCode(0x30A0+Math.random()*96),col.x,col.y);col.y+=col.speed;if(col.y>canvas.height)col.y=-20});ctx.globalAlpha=1;
+  }else if(currentStyle==='hud'){
+    ctx.strokeStyle=accent;ctx.globalAlpha=.05;ctx.lineWidth=1;
+    for(let x=0;x<canvas.width;x+=60){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,canvas.height);ctx.stroke()}
+    for(let y=0;y<canvas.height;y+=60){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(canvas.width,y);ctx.stroke()}
+    ctx.globalAlpha=.2;ctx.lineWidth=2;
+    [[50,50],[canvas.width-50,50],[50,canvas.height-50],[canvas.width-50,canvas.height-50]].forEach(([x,y])=>{ctx.beginPath();ctx.moveTo(x-20,y);ctx.lineTo(x,y);ctx.lineTo(x,y-20);ctx.moveTo(x+20,y);ctx.lineTo(x,y);ctx.lineTo(x,y+20);ctx.stroke()});ctx.globalAlpha=1;
+  }
+  requestAnimationFrame(drawBg);
+}
+drawBg();
+document.querySelectorAll('.style-btn').forEach(btn=>{btn.addEventListener('click',()=>{currentStyle=btn.dataset.style;document.querySelectorAll('.style-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');if(currentStyle==='matrix'){ctx.fillStyle='#000';ctx.fillRect(0,0,canvas.width,canvas.height)}})});
+function toggleListen(){
+  const btn=document.getElementById('speak-btn'),label=document.getElementById('speak-label'),status=document.getElementById('status-text');
+  isListening=!isListening;
+  if(isListening){btn.classList.add('listening');label.textContent='CIPHER LISTENING...';status.textContent='>> VOICE DETECTED — PROCESSING COMMAND';setTimeout(()=>{isListening=false;btn.classList.remove('listening');label.textContent='PRESS TO SPEAK';status.textContent='SYSTEM ONLINE — CLICK MIC TO DEMO'},3000)}
+  else{btn.classList.remove('listening');label.textContent='PRESS TO SPEAK';status.textContent='SYSTEM ONLINE — CLICK MIC TO DEMO'}
+}
+const termLines=[
+  {prefix:'SYSTEM',text:'CIPHER NEURAL ASSISTANT v2.0 — INITIALIZING',type:'system'},
+  {prefix:'SYSTEM',text:'Whisper base.en loaded. Ollama phi3.5 connected.',type:'system'},
+  {prefix:'SYSTEM',text:'10 skill modules loaded. ALL SYSTEMS ONLINE.',type:'system'},
+  {prefix:'[ USER ]',text:'open instagram',type:'user'},
+  {prefix:'CIPHER',text:'Opening instagram on your phone.',type:'response'},
+  {prefix:'[ USER ]',text:'battery',type:'user'},
+  {prefix:'CIPHER',text:'Battery is at 81% and charging.',type:'response'},
+  {prefix:'[ USER ]',text:'what is machine learning',type:'user'},
+  {prefix:'CIPHER',text:'Machine learning enables AI to learn patterns from data without explicit programming.',type:'response'},
+  {prefix:'[ USER ]',text:'system info',type:'user'},
+  {prefix:'CIPHER',text:'CPU 48% · RAM 80% used · Disk 5% used.',type:'response'},
+  {prefix:'[ USER ]',text:'open youtube',type:'user'},
+  {prefix:'CIPHER',text:'Opening YouTube in browser.',type:'response'},
+  {prefix:'[ USER ]',text:'navigate to bangalore airport',type:'user'},
+  {prefix:'CIPHER',text:'Navigating to bangalore airport on your phone.',type:'response'},
+];
+const termBody=document.getElementById('terminal-body');
+let lineIndex=0;
+function addLine(){
+  if(lineIndex>=termLines.length){lineIndex=3;termBody.innerHTML=''}
+  const line=termLines[lineIndex++];
+  const div=document.createElement('div');div.className='t-line';
+  const c=line.type==='response'?'var(--accent2)':line.type==='system'?'var(--accent)':'#fff';
+  div.innerHTML=`<span class="t-prefix" style="color:${c}">${line.prefix}</span><span class="t-text ${line.type}">${line.text}</span>`;
+  termBody.appendChild(div);termBody.scrollTop=termBody.scrollHeight;
+  setTimeout(addLine,line.type==='system'?400:1200);
+}
+setTimeout(addLine,1000);
+</script>
+</body>
+</html>
