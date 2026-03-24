@@ -1,4 +1,5 @@
 # 🔐 CIPHER — AI Voice Assistant
+> Designed as a hybrid AI system that converts unstructured voice input into deterministic system actions using a combination of rule-based execution and LLM reasoning.
 
 > A fully offline, locally-running AI voice assistant built with Python, Faster-Whisper, and Ollama. Control your laptop and Android phone entirely by voice.
 
@@ -257,7 +258,59 @@ No changes to any other file needed. 🎉
 
 ---
 
-## 🏗️ Architecture
+## 🏗️ System Architecture
+
+
+Cipher converts unstructured voice input into deterministic system actions through a multi-stage pipeline:
+
+1. **Speech Recognition**  
+   - Faster-Whisper transcribes raw audio into text  
+   - Handles noise and variable speech patterns
+
+2. **Command Parsing Layer**  
+   - Text is matched against skill triggers using fuzzy matching  
+   - Ensures deterministic execution for known commands
+
+3. **Skill Execution Engine**  
+   - If a command matches → executes a predefined system/mobile action  
+   - If no match → forwarded to LLM for reasoning
+
+4. **LLM Fallback (phi3.5 via Ollama)**  
+   - Handles open-ended queries and reasoning tasks  
+   - Used only when deterministic mapping is not possible
+
+This hybrid pipeline ensures both reliability and flexibility.
+
+## 🤖 LLM Control & Prompt Strategy
+
+Cipher uses a locally hosted phi3.5 model via Ollama for reasoning tasks.
+
+### Key Design Decisions:
+- LLM is used as a fallback, not the primary control layer
+- Prompts are structured to keep responses concise and task-oriented
+- Context history is selectively maintained to avoid drift in multi-turn interactions
+- System avoids relying on LLM for critical actions (e.g., system control)
+
+This approach reduces hallucinations and ensures consistent behavior in an offline environment.
+
+## ⚠️ Determinism vs Generative Control
+
+A key design goal in Cipher is separating deterministic execution from generative reasoning:
+
+- **Deterministic Layer**: Skill-based commands (e.g., "open Instagram") always produce predictable outputs
+- **Generative Layer**: LLM handles flexible queries (e.g., "explain machine learning")
+
+This separation ensures:
+- Reliable system control
+- Reduced hallucination risk
+- Better user trust in real-world usage
+
+## 🧩 Failure Handling & Robustness
+
+- Handles speech recognition errors using fuzzy matching
+- Falls back to LLM when command parsing fails
+- Prevents unsafe execution by restricting critical actions to predefined skills
+- Maintains stable performance even without internet (fully offline design)
 
 ```
 SPACE KEY → listen.py (Whisper) → main.py (Router)
