@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CIPHER — AI Voice Assistant</title>
+<link rel="icon" href="data:,">
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@300;400;500;600;700&family=Orbitron:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#000;--surface:#0a0a0a;--accent:#00fff7;--accent2:#ff00ff;--text:#e0e0e0;--muted:#444;--glow:0 0 20px var(--accent),0 0 40px var(--accent)}
@@ -78,6 +79,73 @@ section{padding:6rem 2rem;position:relative}
 .skill-desc{font-size:.9rem;color:var(--muted);line-height:1.6;margin-bottom:1rem}
 .skill-commands{display:flex;flex-wrap:wrap;gap:6px}
 .cmd-tag{font-family:'Share Tech Mono',monospace;font-size:.65rem;background:rgba(0,255,247,.05);border:1px solid rgba(0,255,247,.15);color:var(--accent);padding:3px 8px;letter-spacing:1px}
+
+/* ---------- NEW: SYSTEM DASHBOARD (LIVE TELEMETRY) ---------- */
+.dashboard-grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 2rem;
+  max-width: 1000px;
+  margin: 0 auto;
+}
+.gauge-card {
+  background: rgba(0, 255, 247, 0.02);
+  border: 1px solid rgba(0, 255, 247, 0.2);
+  backdrop-filter: blur(4px);
+  padding: 1.5rem;
+  border-radius: 32px;
+  text-align: center;
+  min-width: 220px;
+  transition: all 0.3s;
+  box-shadow: 0 0 10px rgba(0,255,247,0.1);
+}
+.gauge-card:hover {
+  border-color: var(--accent);
+  box-shadow: var(--glow);
+  transform: translateY(-4px);
+}
+.gauge-title {
+  font-family: 'Orbitron', monospace;
+  font-size: 1rem;
+  letter-spacing: 3px;
+  color: var(--accent);
+  text-transform: uppercase;
+  margin-bottom: 1rem;
+}
+.gauge-canvas {
+  display: block;
+  margin: 0 auto;
+  width: 140px;
+  height: 140px;
+}
+.gauge-value {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 1.8rem;
+  font-weight: bold;
+  color: var(--accent);
+  text-shadow: var(--glow);
+  margin-top: 0.8rem;
+}
+.gauge-unit {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-left: 4px;
+}
+.telemetry-note {
+  text-align: center;
+  font-family: 'Share Tech Mono';
+  font-size: 0.7rem;
+  color: var(--muted);
+  margin-top: 1.5rem;
+  letter-spacing: 2px;
+}
+@media (max-width: 640px) {
+  .gauge-canvas { width: 100px; height: 100px; }
+  .gauge-value { font-size: 1.2rem; }
+}
+/* ---------------------------------------------- */
+
 #terminal{background:rgba(0,5,0,.9);border:1px solid var(--accent);box-shadow:var(--glow);max-width:800px;margin:0 auto;font-family:'Share Tech Mono',monospace;overflow:hidden}
 .terminal-bar{background:rgba(0,255,247,.05);padding:.75rem 1rem;display:flex;align-items:center;gap:8px;border-bottom:1px solid rgba(0,255,247,.1)}
 .terminal-dot{width:12px;height:12px;border-radius:50%}
@@ -120,6 +188,7 @@ footer{padding:3rem 2rem;text-align:center;border-top:1px solid rgba(0,255,247,.
   <div class="nav-logo">CIPHER</div>
   <ul class="nav-links">
     <li><a href="#skills">Skills</a></li>
+    <li><a href="#telemetry">Telemetry</a></li>
     <li><a href="#demo">Demo</a></li>
     <li><a href="#tech">Stack</a></li>
     <li><a href="#about">Developer</a></li>
@@ -131,6 +200,7 @@ footer{padding:3rem 2rem;text-align:center;border-top:1px solid rgba(0,255,247,.
     <button class="theme-btn" data-theme="gold" title="Gold"></button>
   </div>
 </nav>
+
 <section id="hero">
   <canvas id="visual-canvas"></canvas>
   <div class="style-selector">
@@ -144,6 +214,13 @@ footer{padding:3rem 2rem;text-align:center;border-top:1px solid rgba(0,255,247,.
     <h1 class="hero-title glitch" data-text="CIPHER">CIPHER</h1>
     <p class="hero-subtitle">INTELLIGENT — AUTONOMOUS — ALWAYS LISTENING</p>
     <div id="waveform-container"><canvas id="waveform"></canvas></div>
+    <div id="code-window" style="display:none; width:min(700px, 95vw); margin: 2rem auto; background:rgba(0,10,0,0.9); border:1px solid var(--accent); box-shadow: var(--glow); position:relative; text-align:left;">
+    <div style="background:rgba(0,255,247,0.1); padding:8px 15px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid rgba(0,255,247,0.2);">
+        <span style="font-family:'Share Tech Mono'; font-size:12px; color:var(--accent);">SOURCE_CODE_EXTRACTOR // ACTIVE</span>
+        <button onclick="copyGeneratedCode()" style="background:var(--accent); color:#000; border:none; padding:2px 10px; font-family:'Orbitron'; font-size:10px; font-weight:bold; cursor:pointer;">COPY</button>
+    </div>
+    <pre id="code-typing-text" style="padding:20px; color:#0f0; font-family:'Share Tech Mono', monospace; font-size:14px; white-space:pre-wrap; margin:0; max-height:400px; overflow-y:auto;"></pre>
+</div>
     <div class="status-bar">
       <div class="status-dot"></div>
       <span id="status-text">SYSTEM ONLINE — CLICK MIC TO DEMO</span>
@@ -151,7 +228,41 @@ footer{padding:3rem 2rem;text-align:center;border-top:1px solid rgba(0,255,247,.
     <button class="speak-btn" id="speak-btn" onclick="toggleListen()">
       <span class="mic-icon">🎙</span>
     </button>
-    <p class="speak-label" id="speak-label">PRESS TO SPEAK</p>
+    
+    <div style="margin: 1rem auto; display: flex; gap: 10px; justify-content: center; align-items: center;">
+        <span style="color: var(--accent); font-family: 'Share Tech Mono', monospace;">>_</span>
+        <input type="text" id="command-input" placeholder="Type command or speak..." 
+               style="background: rgba(0,255,247,0.05); border: 1px solid var(--accent); color: var(--text); padding: 10px; font-family: 'Share Tech Mono', monospace; width: 250px; outline: none; text-transform: lowercase;">
+        <button onclick="sendCommand(document.getElementById('command-input').value)" 
+                style="background: var(--accent); color: #000; border: none; padding: 10px 15px; font-family: 'Orbitron', monospace; font-weight: bold; cursor: pointer; transition: 0.3s;">
+            EXECUTE
+        </button>
+        
+    </div>
+    <p class="speak-label" id="speak-label">PRESS MIC OR TYPE COMMAND</p>
+    
+    <div style="margin-top: 2rem;">
+        <button onclick="window.location.href='chat.html'" style="
+            background: linear-gradient(135deg, rgba(0,200,255,0.1), rgba(0,102,255,0.1));
+            border: 1px solid rgba(0,200,255,0.4);
+            color: #00c8ff;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1rem;
+            font-weight: 700;
+            letter-spacing: 2px;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 15px rgba(0,200,255,0.2);
+        " onmouseover="this.style.boxShadow='0 0 25px rgba(0,200,255,0.5)'; this.style.transform='scale(1.05)';" 
+          onmouseout="this.style.boxShadow='0 0 15px rgba(0,200,255,0.2)'; this.style.transform='scale(1)';">
+            <i class="fa fa-network-wired" style="margin-right: 8px;"></i>
+            ENTER NEURAL CHAT
+        </button>
+    </div>
+
+    <div class="hero-stats">
     <div class="hero-stats">
       <div class="stat"><span class="stat-num">10+</span><span class="stat-label">Skill Modules</span></div>
       <div class="stat"><span class="stat-num">50+</span><span class="stat-label">Voice Commands</span></div>
@@ -177,6 +288,30 @@ footer{padding:3rem 2rem;text-align:center;border-top:1px solid rgba(0,255,247,.
     <div class="skill-card reveal"><span class="skill-icon">🪟</span><div class="skill-name">Window Manager</div><div class="skill-desc">Minimize, maximize, close windows. Switch between apps. Full desktop control by voice.</div><div class="skill-commands"><span class="cmd-tag">minimize window</span><span class="cmd-tag">close chrome</span><span class="cmd-tag">maximize</span></div></div>
   </div>
 </section>
+
+<!-- ========== NEW: LIVE TELEMETRY DASHBOARD ========== -->
+<section id="telemetry">
+  <div class="section-header reveal">
+    <span class="section-tag">// SYSTEM MONITOR</span>
+    <h2 class="section-title">LIVE TELEMETRY</h2>
+    <div class="section-line"></div>
+  </div>
+  <div class="dashboard-grid">
+    <div class="gauge-card reveal">
+      <div class="gauge-title">⚡ CPU USAGE</div>
+      <canvas id="cpuGauge" class="gauge-canvas" width="140" height="140"></canvas>
+      <div class="gauge-value"><span id="cpuPercent">0</span><span class="gauge-unit">%</span></div>
+    </div>
+    <div class="gauge-card reveal">
+      <div class="gauge-title">🧠 RAM USAGE</div>
+      <canvas id="ramGauge" class="gauge-canvas" width="140" height="140"></canvas>
+      <div class="gauge-value"><span id="ramPercent">0</span><span class="gauge-unit">%</span></div>
+    </div>
+  </div>
+  <p class="telemetry-note">⟳ LIVE DATA · REFRESHES EVERY 2 SECONDS</p>
+</section>
+<!-- ================================================= -->
+
 <section id="demo">
   <div class="section-header reveal">
     <span class="section-tag">// LIVE DEMO</span>
@@ -233,97 +368,273 @@ footer{padding:3rem 2rem;text-align:center;border-top:1px solid rgba(0,255,247,.
   <p class="footer-text">BUILT WITH PYTHON · WHISPER · OLLAMA · ADB · 2026</p>
 </footer>
 <script>
-const cursor=document.getElementById('cursor'),cursorRing=document.getElementById('cursor-ring');
-document.addEventListener('mousemove',e=>{cursor.style.left=e.clientX-6+'px';cursor.style.top=e.clientY-6+'px';cursorRing.style.left=e.clientX-18+'px';cursorRing.style.top=e.clientY-18+'px'});
-document.querySelectorAll('.theme-btn').forEach(btn=>{btn.addEventListener('click',()=>{document.body.setAttribute('data-theme',btn.dataset.theme);document.querySelectorAll('.theme-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active')})});
-const observer=new IntersectionObserver(entries=>{entries.forEach(e=>{if(e.isIntersecting)e.target.classList.add('visible')})},{threshold:.1});
-document.querySelectorAll('.reveal').forEach(el=>observer.observe(el));
-const waveCanvas=document.getElementById('waveform'),wCtx=waveCanvas.getContext('2d');
-let wavePhase=0,isListening=false;
-function drawWaveform(){
-  waveCanvas.width=waveCanvas.offsetWidth;waveCanvas.height=waveCanvas.offsetHeight;
-  const w=waveCanvas.width,h=waveCanvas.height;
-  wCtx.clearRect(0,0,w,h);
-  const accent=getComputedStyle(document.body).getPropertyValue('--accent').trim();
-  wCtx.strokeStyle=accent;wCtx.lineWidth=2;wCtx.shadowColor=accent;wCtx.shadowBlur=10;
-  wCtx.beginPath();
-  for(let i=0;i<=80;i++){
-    const x=(i/80)*w;
-    const amp=isListening?(Math.random()*.8+.2):(Math.sin(i*.3+wavePhase)*.3+.1);
-    const y=h/2+Math.sin(i*.4+wavePhase)*(h*.4)*amp;
-    i===0?wCtx.moveTo(x,y):wCtx.lineTo(x,y);
+  // ========== EXISTING SCRIPTS (unchanged) ==========
+  function runTypingAnimation(codeString) {
+    const display = document.getElementById('code-typing-text');
+    const windowDiv = document.getElementById('code-window');
+    windowDiv.style.display = 'block';
+    display.innerHTML = '';
+    let index = 0;
+    const speed = 10;
+    function type() {
+        if (index < codeString.length) {
+            display.innerHTML += codeString.charAt(index);
+            index++;
+            document.getElementById('code-typing-text').scrollTop = document.getElementById('code-typing-text').scrollHeight;
+            setTimeout(type, speed);
+        }
+    }
+    type();
   }
-  wCtx.stroke();wavePhase+=isListening?.15:.03;
-  requestAnimationFrame(drawWaveform);
-}
-drawWaveform();
-const canvas=document.getElementById('visual-canvas'),ctx=canvas.getContext('2d');
-let currentStyle='waveform';
-const particles=Array.from({length:100},()=>({x:Math.random()*window.innerWidth,y:Math.random()*window.innerHeight,vx:(Math.random()-.5)*.5,vy:(Math.random()-.5)*.5,size:Math.random()*2+.5,opacity:Math.random()}));
-const matrixCols=Math.floor(window.innerWidth/16);
-const matrixChars=Array.from({length:matrixCols},(_,i)=>({x:i*16,y:Math.random()*window.innerHeight,speed:Math.random()*3+1}));
-function resizeCanvas(){canvas.width=window.innerWidth;canvas.height=window.innerHeight}
-resizeCanvas();window.addEventListener('resize',resizeCanvas);
-function getAccent(){return getComputedStyle(document.body).getPropertyValue('--accent').trim()||'#00fff7'}
-function drawBg(){
-  const accent=getAccent();ctx.clearRect(0,0,canvas.width,canvas.height);
-  if(currentStyle==='waveform'){
-    for(let w=0;w<5;w++){ctx.beginPath();ctx.strokeStyle=accent;ctx.globalAlpha=.05+w*.03;ctx.lineWidth=1;for(let x=0;x<canvas.width;x++){const y=canvas.height/2+Math.sin(x*.01+wavePhase+w)*(50+w*30)+Math.sin(x*.02-wavePhase*1.3)*20;x===0?ctx.moveTo(x,y):ctx.lineTo(x,y)}ctx.stroke()}ctx.globalAlpha=1;
-  }else if(currentStyle==='orb'){
-    const cx=canvas.width/2,cy=canvas.height/2,grad=ctx.createRadialGradient(cx,cy,0,cx,cy,300);
-    grad.addColorStop(0,accent+'30');grad.addColorStop(.5,accent+'10');grad.addColorStop(1,'transparent');
-    ctx.fillStyle=grad;ctx.beginPath();ctx.arc(cx,cy,300,0,Math.PI*2);ctx.fill();
-    particles.forEach(p=>{p.x+=p.vx;p.y+=p.vy;if(p.x<0||p.x>canvas.width)p.vx*=-1;if(p.y<0||p.y>canvas.height)p.vy*=-1;ctx.beginPath();ctx.arc(p.x,p.y,p.size,0,Math.PI*2);ctx.fillStyle=accent;ctx.globalAlpha=p.opacity*.5;ctx.fill()});ctx.globalAlpha=1;
-  }else if(currentStyle==='matrix'){
-    ctx.fillStyle='rgba(0,0,0,0.05)';ctx.fillRect(0,0,canvas.width,canvas.height);
-    ctx.fillStyle=accent;ctx.font='14px Share Tech Mono';ctx.globalAlpha=.3;
-    matrixChars.forEach(col=>{ctx.fillText(String.fromCharCode(0x30A0+Math.random()*96),col.x,col.y);col.y+=col.speed;if(col.y>canvas.height)col.y=-20});ctx.globalAlpha=1;
-  }else if(currentStyle==='hud'){
-    ctx.strokeStyle=accent;ctx.globalAlpha=.05;ctx.lineWidth=1;
-    for(let x=0;x<canvas.width;x+=60){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,canvas.height);ctx.stroke()}
-    for(let y=0;y<canvas.height;y+=60){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(canvas.width,y);ctx.stroke()}
-    ctx.globalAlpha=.2;ctx.lineWidth=2;
-    [[50,50],[canvas.width-50,50],[50,canvas.height-50],[canvas.width-50,canvas.height-50]].forEach(([x,y])=>{ctx.beginPath();ctx.moveTo(x-20,y);ctx.lineTo(x,y);ctx.lineTo(x,y-20);ctx.moveTo(x+20,y);ctx.lineTo(x,y);ctx.lineTo(x,y+20);ctx.stroke()});ctx.globalAlpha=1;
+  function copyGeneratedCode() {
+    const code = document.getElementById('code-typing-text').innerText;
+    navigator.clipboard.writeText(code);
+    const btn = event.target;
+    btn.innerText = "COPIED!";
+    setTimeout(() => { btn.innerText = "COPY"; }, 2000);
   }
-  requestAnimationFrame(drawBg);
-}
-drawBg();
-document.querySelectorAll('.style-btn').forEach(btn=>{btn.addEventListener('click',()=>{currentStyle=btn.dataset.style;document.querySelectorAll('.style-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');if(currentStyle==='matrix'){ctx.fillStyle='#000';ctx.fillRect(0,0,canvas.width,canvas.height)}})});
-function toggleListen(){
-  const btn=document.getElementById('speak-btn'),label=document.getElementById('speak-label'),status=document.getElementById('status-text');
-  isListening=!isListening;
-  if(isListening){btn.classList.add('listening');label.textContent='CIPHER LISTENING...';status.textContent='>> VOICE DETECTED — PROCESSING COMMAND';setTimeout(()=>{isListening=false;btn.classList.remove('listening');label.textContent='PRESS TO SPEAK';status.textContent='SYSTEM ONLINE — CLICK MIC TO DEMO'},3000)}
-  else{btn.classList.remove('listening');label.textContent='PRESS TO SPEAK';status.textContent='SYSTEM ONLINE — CLICK MIC TO DEMO'}
-}
-const termLines=[
-  {prefix:'SYSTEM',text:'CIPHER NEURAL ASSISTANT v2.0 — INITIALIZING',type:'system'},
-  {prefix:'SYSTEM',text:'Whisper base.en loaded. Ollama phi3.5 connected.',type:'system'},
-  {prefix:'SYSTEM',text:'10 skill modules loaded. ALL SYSTEMS ONLINE.',type:'system'},
-  {prefix:'[ USER ]',text:'open instagram',type:'user'},
-  {prefix:'CIPHER',text:'Opening instagram on your phone.',type:'response'},
-  {prefix:'[ USER ]',text:'battery',type:'user'},
-  {prefix:'CIPHER',text:'Battery is at 81% and charging.',type:'response'},
-  {prefix:'[ USER ]',text:'what is machine learning',type:'user'},
-  {prefix:'CIPHER',text:'Machine learning enables AI to learn patterns from data without explicit programming.',type:'response'},
-  {prefix:'[ USER ]',text:'system info',type:'user'},
-  {prefix:'CIPHER',text:'CPU 48% · RAM 80% used · Disk 5% used.',type:'response'},
-  {prefix:'[ USER ]',text:'open youtube',type:'user'},
-  {prefix:'CIPHER',text:'Opening YouTube in browser.',type:'response'},
-  {prefix:'[ USER ]',text:'navigate to bangalore airport',type:'user'},
-  {prefix:'CIPHER',text:'Navigating to bangalore airport on your phone.',type:'response'},
-];
-const termBody=document.getElementById('terminal-body');
-let lineIndex=0;
-function addLine(){
-  if(lineIndex>=termLines.length){lineIndex=3;termBody.innerHTML=''}
-  const line=termLines[lineIndex++];
-  const div=document.createElement('div');div.className='t-line';
-  const c=line.type==='response'?'var(--accent2)':line.type==='system'?'var(--accent)':'#fff';
-  div.innerHTML=`<span class="t-prefix" style="color:${c}">${line.prefix}</span><span class="t-text ${line.type}">${line.text}</span>`;
-  termBody.appendChild(div);termBody.scrollTop=termBody.scrollHeight;
-  setTimeout(addLine,line.type==='system'?400:1200);
-}
-setTimeout(addLine,1000);
+  const cursor=document.getElementById('cursor'),cursorRing=document.getElementById('cursor-ring');
+  document.addEventListener('mousemove',e=>{cursor.style.left=e.clientX-6+'px';cursor.style.top=e.clientY-6+'px';cursorRing.style.left=e.clientX-18+'px';cursorRing.style.top=e.clientY-18+'px'});
+  document.querySelectorAll('.theme-btn').forEach(btn=>{btn.addEventListener('click',()=>{document.body.setAttribute('data-theme',btn.dataset.theme);document.querySelectorAll('.theme-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active')})});
+  const observer=new IntersectionObserver(entries=>{entries.forEach(e=>{if(e.isIntersecting)e.target.classList.add('visible')})},{threshold:.1});
+  document.querySelectorAll('.reveal').forEach(el=>observer.observe(el));
+  const waveCanvas=document.getElementById('waveform'),wCtx=waveCanvas.getContext('2d');
+  let wavePhase=0,isListening=false;
+  function drawWaveform(){
+    waveCanvas.width=waveCanvas.offsetWidth;waveCanvas.height=waveCanvas.offsetHeight;
+    const w=waveCanvas.width,h=waveCanvas.height;
+    wCtx.clearRect(0,0,w,h);
+    const accent=getComputedStyle(document.body).getPropertyValue('--accent').trim();
+    wCtx.strokeStyle=accent;wCtx.lineWidth=2;wCtx.shadowColor=accent;wCtx.shadowBlur=10;
+    wCtx.beginPath();
+    for(let i=0;i<=80;i++){
+      const x=(i/80)*w;
+      const amp=isListening?(Math.random()*.8+.2):(Math.sin(i*.3+wavePhase)*.3+.1);
+      const y=h/2+Math.sin(i*.4+wavePhase)*(h*.4)*amp;
+      i===0?wCtx.moveTo(x,y):wCtx.lineTo(x,y);
+    }
+    wCtx.stroke();wavePhase+=isListening?.15:.03;
+    requestAnimationFrame(drawWaveform);
+  }
+  drawWaveform();
+  const canvas=document.getElementById('visual-canvas'),ctx=canvas.getContext('2d');
+  let currentStyle='waveform';
+  const particles=Array.from({length:100},()=>({x:Math.random()*window.innerWidth,y:Math.random()*window.innerHeight,vx:(Math.random()-.5)*.5,vy:(Math.random()-.5)*.5,size:Math.random()*2+.5,opacity:Math.random()}));
+  const matrixCols=Math.floor(window.innerWidth/16);
+  const matrixChars=Array.from({length:matrixCols},(_,i)=>({x:i*16,y:Math.random()*window.innerHeight,speed:Math.random()*3+1}));
+  function resizeCanvas(){canvas.width=window.innerWidth;canvas.height=window.innerHeight}
+  resizeCanvas();window.addEventListener('resize',resizeCanvas);
+  function getAccent(){return getComputedStyle(document.body).getPropertyValue('--accent').trim()||'#00fff7'}
+  function drawBg(){
+    const accent=getAccent();ctx.clearRect(0,0,canvas.width,canvas.height);
+    if(currentStyle==='waveform'){
+      for(let w=0;w<5;w++){ctx.beginPath();ctx.strokeStyle=accent;ctx.globalAlpha=.05+w*.03;ctx.lineWidth=1;for(let x=0;x<canvas.width;x++){const y=canvas.height/2+Math.sin(x*.01+wavePhase+w)*(50+w*30)+Math.sin(x*.02-wavePhase*1.3)*20;x===0?ctx.moveTo(x,y):ctx.lineTo(x,y)}ctx.stroke()}ctx.globalAlpha=1;
+    }else if(currentStyle==='orb'){
+      const cx=canvas.width/2,cy=canvas.height/2,grad=ctx.createRadialGradient(cx,cy,0,cx,cy,300);
+      grad.addColorStop(0,accent+'30');grad.addColorStop(.5,accent+'10');grad.addColorStop(1,'transparent');
+      ctx.fillStyle=grad;ctx.beginPath();ctx.arc(cx,cy,300,0,Math.PI*2);ctx.fill();
+      particles.forEach(p=>{p.x+=p.vx;p.y+=p.vy;if(p.x<0||p.x>canvas.width)p.vx*=-1;if(p.y<0||p.y>canvas.height)p.vy*=-1;ctx.beginPath();ctx.arc(p.x,p.y,p.size,0,Math.PI*2);ctx.fillStyle=accent;ctx.globalAlpha=p.opacity*.5;ctx.fill()});ctx.globalAlpha=1;
+    }else if(currentStyle==='matrix'){
+      ctx.fillStyle='rgba(0,0,0,0.05)';ctx.fillRect(0,0,canvas.width,canvas.height);
+      ctx.fillStyle=accent;ctx.font='14px Share Tech Mono';ctx.globalAlpha=.3;
+      matrixChars.forEach(col=>{ctx.fillText(String.fromCharCode(0x30A0+Math.random()*96),col.x,col.y);col.y+=col.speed;if(col.y>canvas.height)col.y=-20});ctx.globalAlpha=1;
+    }else if(currentStyle==='hud'){
+      ctx.strokeStyle=accent;ctx.globalAlpha=.05;ctx.lineWidth=1;
+      for(let x=0;x<canvas.width;x+=60){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,canvas.height);ctx.stroke()}
+      for(let y=0;y<canvas.height;y+=60){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(canvas.width,y);ctx.stroke()}
+      ctx.globalAlpha=.2;ctx.lineWidth=2;
+      [[50,50],[canvas.width-50,50],[50,canvas.height-50],[canvas.width-50,canvas.height-50]].forEach(([x,y])=>{ctx.beginPath();ctx.moveTo(x-20,y);ctx.lineTo(x,y);ctx.lineTo(x,y-20);ctx.moveTo(x+20,y);ctx.lineTo(x,y);ctx.lineTo(x,y+20);ctx.stroke()});ctx.globalAlpha=1;
+    }
+    requestAnimationFrame(drawBg);
+  }
+  drawBg();
+  document.querySelectorAll('.style-btn').forEach(btn=>{btn.addEventListener('click',()=>{currentStyle=btn.dataset.style;document.querySelectorAll('.style-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');if(currentStyle==='matrix'){ctx.fillStyle='#000';ctx.fillRect(0,0,canvas.width,canvas.height)}})});
+  document.getElementById('command-input').addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') {
+          sendCommand(this.value);
+      }
+  });
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let recognition = null;
+  if (SpeechRecognition) {
+      recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.lang = 'en-US';
+      recognition.interimResults = false;
+      recognition.onresult = function(event) {
+          const transcript = event.results[0][0].transcript;
+          document.getElementById('command-input').value = transcript;
+          sendCommand(transcript);
+      };
+      recognition.onerror = function(event) {
+          console.error("Speech error:", event.error);
+          stopListeningVisuals();
+      };
+      recognition.onend = function() {
+          stopListeningVisuals();
+      };
+  } else {
+      console.warn("Speech Recognition not supported in this browser. Please use the text input.");
+  }
+  function toggleListen(){
+      const btn = document.getElementById('speak-btn');
+      if(!isListening){
+          if (recognition) {
+              recognition.start();
+              isListening = true;
+              btn.classList.add('listening');
+              document.getElementById('speak-label').textContent = 'CIPHER LISTENING...';
+              document.getElementById('status-text').textContent = '>> MIC ACTIVE — AWAITING VOICE COMMAND';
+          } else {
+              alert("Voice recognition not supported. Please type your command.");
+          }
+      } else {
+          if (recognition) recognition.stop();
+          stopListeningVisuals();
+      }
+  }
+  function stopListeningVisuals() {
+      isListening = false;
+      document.getElementById('speak-btn').classList.remove('listening');
+      document.getElementById('speak-label').textContent = 'PRESS MIC OR TYPE COMMAND';
+      document.getElementById('status-text').textContent = 'SYSTEM ONLINE — READY';
+  }
+  async function sendCommand(textCommand) {
+      if (!textCommand.trim()) return;
+      document.getElementById('status-text').textContent = '>> ROUTING TO NEURAL SWARM...';
+      document.getElementById('command-input').value = '';
+      try {
+         const res = await fetch('http://127.0.0.1:5500/api/command', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ command: text }),
+      signal: AbortSignal.timeout(30000)
+});
+          const data = await response.json();
+          document.getElementById('status-text').textContent = '>> RESPONSE RECEIVED';
+          if (data.code) {
+              console.log("Code received, starting animation...");
+              runTypingAnimation(data.code);
+          }
+          console.log("Cipher Output:", data.response);
+          let utterance = new SpeechSynthesisUtterance(data.response);
+          window.speechSynthesis.speak(utterance);
+      } catch (error) {
+          console.error('Connection Error:', error);
+          document.getElementById('status-text').textContent = '>> ERROR: BACKEND OFFLINE';
+      }
+  }
+  const termLines=[
+    {prefix:'SYSTEM',text:'CIPHER NEURAL ASSISTANT v2.0 — INITIALIZING',type:'system'},
+    {prefix:'SYSTEM',text:'Whisper base.en loaded. Ollama phi3.5 connected.',type:'system'},
+    {prefix:'SYSTEM',text:'10 skill modules loaded. ALL SYSTEMS ONLINE.',type:'system'},
+    {prefix:'[ USER ]',text:'open instagram',type:'user'},
+    {prefix:'CIPHER',text:'Opening instagram on your phone.',type:'response'},
+    {prefix:'[ USER ]',text:'battery',type:'user'},
+    {prefix:'CIPHER',text:'Battery is at 81% and charging.',type:'response'},
+    {prefix:'[ USER ]',text:'what is machine learning',type:'user'},
+    {prefix:'CIPHER',text:'Machine learning enables AI to learn patterns from data without explicit programming.',type:'response'},
+    {prefix:'[ USER ]',text:'system info',type:'user'},
+    {prefix:'CIPHER',text:'CPU 48% · RAM 80% used · Disk 5% used.',type:'response'},
+    {prefix:'[ USER ]',text:'open youtube',type:'user'},
+    {prefix:'CIPHER',text:'Opening YouTube in browser.',type:'response'},
+    {prefix:'[ USER ]',text:'navigate to bangalore airport',type:'user'},
+    {prefix:'CIPHER',text:'Navigating to bangalore airport on your phone.',type:'response'},
+  ];
+  const termBody=document.getElementById('terminal-body');
+  let lineIndex=0;
+  function addLine(){
+    if(lineIndex>=termLines.length){lineIndex=3;termBody.innerHTML=''}
+    const line=termLines[lineIndex++];
+    const div=document.createElement('div');div.className='t-line';
+    const c=line.type==='response'?'var(--accent2)':line.type==='system'?'var(--accent)':'#fff';
+    div.innerHTML=`<span class="t-prefix" style="color:${c}">${line.prefix}</span><span class="t-text ${line.type}">${line.text}</span>`;
+    termBody.appendChild(div);termBody.scrollTop=termBody.scrollHeight;
+    setTimeout(addLine,line.type==='system'?400:1200);
+  }
+  setTimeout(addLine,1000);
+
+  // ========== NEW: TELEMETRY GAUGES (CPU / RAM) ==========
+  let lastCpu = 42, lastRam = 58;
+  const cpuCanvas = document.getElementById('cpuGauge');
+  const ramCanvas = document.getElementById('ramGauge');
+  const cpuSpan = document.getElementById('cpuPercent');
+  const ramSpan = document.getElementById('ramPercent');
+
+  function drawGauge(canvas, value, accentColor) {
+    if (!canvas || !canvas.getContext) return;
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width, h = canvas.height;
+    const centerX = w/2, centerY = h/2;
+    const radius = w * 0.4;
+    const startAngle = -0.5 * Math.PI;
+    const endAngle = startAngle + (value / 100) * 2 * Math.PI;
+    
+    ctx.clearRect(0, 0, w, h);
+    // background track
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+    ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+    ctx.lineWidth = 12;
+    ctx.stroke();
+    
+    // progress arc
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, radius, startAngle, endAngle);
+    ctx.strokeStyle = accentColor;
+    ctx.lineWidth = 12;
+    ctx.shadowBlur = 10;
+    ctx.shadowColor = accentColor;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    
+    // inner circle glow
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, radius - 5, 0, 2 * Math.PI);
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, radius - 5, 0, 2 * Math.PI);
+    ctx.strokeStyle = `rgba(${parseInt(accentColor.slice(1,3),16)}, ${parseInt(accentColor.slice(3,5),16)}, ${parseInt(accentColor.slice(5,7),16)}, 0.3)`;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
+  function getCurrentAccent() {
+    return getComputedStyle(document.body).getPropertyValue('--accent').trim() || '#00fff7';
+  }
+
+  function updateTelemetry() {
+    // random walk: change by -8..+12 percent, clamp 5-95
+    let newCpu = lastCpu + (Math.random() * 20 - 8);
+    newCpu = Math.min(95, Math.max(5, newCpu));
+    let newRam = lastRam + (Math.random() * 18 - 6);
+    newRam = Math.min(94, Math.max(6, newRam));
+    
+    lastCpu = Math.round(newCpu);
+    lastRam = Math.round(newRam);
+    
+    cpuSpan.innerText = lastCpu;
+    ramSpan.innerText = lastRam;
+    
+    const accent = getCurrentAccent();
+    drawGauge(cpuCanvas, lastCpu, accent);
+    drawGauge(ramCanvas, lastRam, accent);
+  }
+  
+  // initial draw
+  setTimeout(() => {
+    updateTelemetry();
+    setInterval(updateTelemetry, 2000);
+  }, 500);
+  
+  // re-draw on theme change (accent color update)
+  const observerTheme = new MutationObserver(() => {
+    const accent = getCurrentAccent();
+    drawGauge(cpuCanvas, lastCpu, accent);
+    drawGauge(ramCanvas, lastRam, accent);
+  });
+  observerTheme.observe(document.body, { attributes: true, attributeFilter: ['data-theme'] });
 </script>
 </body>
 </html>

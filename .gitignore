@@ -1,6 +1,35 @@
-echo __pycache__/ > .gitignore
-echo *.pyc >> .gitignore
-echo .env >> .gitignore
-echo data/logs.txt >> .gitignore
-echo input.wav >> .gitignore
-echo temp_input.wav >> .gitignore
+# --- Python Basics ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+
+# --- Cipher Secrets & Config ---
+.env
+config_local.py
+
+# --- Databases (Personal Data) ---
+*.db
+*.sqlite3
+
+# --- AI Generated Content (Keep your repo clean) ---
+generated_code/
+cipher_knowledge/
+temp/
+
+# --- Media & Audio (Large Files) ---
+*.wav
+*.mp3
+*.mp4
+input.wav
+temp_input.wav
+
+# --- Logs & OS Files ---
+data/logs.txt
+*.log
+.DS_Store
+Thumbs.db

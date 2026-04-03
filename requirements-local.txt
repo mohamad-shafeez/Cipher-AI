@@ -1,3 +1,4 @@
+# --- CORE AI & AUDIO ---
 faster-whisper==0.10.0
 ollama
 transformers
@@ -5,15 +6,38 @@ ctranslate2
 pyaudio
 numpy
 RealtimeTTS
-thefuzz[speedup]
-python-Levenshtein
+pyttsx3
+keyboard
+
+# --- BACKEND & SECURITY ---
+flask
+flask-cors
+python-dotenv
+cryptography
+
+# --- SYSTEM & AUTOMATION ---
 psutil
-screen-brightness-control
 pyautogui
+opencv-python
+screen-brightness-control
 pyperclip
+
+# --- WEB & SCRAPING ---
+requests
+urllib3
+beautifulsoup4
+lxml
 wikipedia
 googlesearch-python
-urllib3
-keyboard
-pyttsx3
-requests
+
+# --- UTILITIES & ELITE SKILLS ---
+yfinance             # For Market Analyst
+PyPDF2               # For Document Intel (PDFs)
+python-docx          # For Document Intel (Word)
+speedtest-cli        # For Network Monitor
+pywhatkit            # For WhatsApp
+ffmpeg-python        # For Media processing
+thefuzz[speedup]     # For NLP matching
+python-Levenshtein
+
+google-generativeai
