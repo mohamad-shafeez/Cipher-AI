@@ -1,7 +1,7 @@
 [build]
   publish = "web"
-  command = ""
-  ignore = "exit 0"
+  command = "echo 'Static Frontend Mode Active'"
 
 [build.environment]
-  PYTHON_VERSION = ""
+  # We remove the PYTHON_VERSION entirely so Netlify stops trying to build a backend
+  NODE_VERSION = "20"
