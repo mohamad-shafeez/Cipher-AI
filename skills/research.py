@@ -3,7 +3,7 @@ import wikipedia
 import webbrowser
 import config
 
-class ResearchSkills:
+class ResearchSkill:
     def __init__(self):
         wikipedia.set_lang("en")
         print(">> Research Skills: ONLINE")

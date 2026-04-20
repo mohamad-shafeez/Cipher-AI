@@ -1,228 +1,185 @@
-# skills/files.py
 import os
 import shutil
 import subprocess
 import zipfile
 import pathlib
-import datetime
-import config
+import re
+from typing import Optional
 
-class FileSkills:
+class FilesSkill:
+    """
+    Cipher Skill — Advanced File Manager
+    Handles local file operations using Regex NLP parsing for spaces and dynamic locations.
+    """
     def __init__(self):
-        print(">> File Skills: ONLINE")
+        print(">> File Skills: ONLINE (Advanced NLP & Pathing Active)")
         self.home = pathlib.Path.home()
-        self.desktop = self.home / "Desktop"
-        self.downloads = self.home / "Downloads"
-        self.documents = self.home / "Documents"
+        self.locations = {
+            "desktop": self.home / "Desktop",
+            "downloads": self.home / "Downloads",
+            "documents": self.home / "Documents",
+            "home": self.home
+        }
 
     # ─────────────────────────────────────────
     # FILE OPERATIONS
     # ─────────────────────────────────────────
-    def create_file(self, filename, location="desktop"):
+    def create_file(self, filename: str, location: str = "desktop") -> str:
         try:
             folder = self._resolve_location(location)
+            # Ensure it has an extension if none provided
+            if "." not in filename:
+                filename += ".txt"
             filepath = folder / filename
             filepath.touch()
-            return f"Created {filename} on your {location}."
+            return f"Sir, I have created the file {filename} in your {location}."
         except Exception as e:
-            return f"Could not create file: {e}"
+            return f"I could not create the file. Error: {e}"
 
-    def create_folder(self, foldername, location="desktop"):
+    def create_folder(self, foldername: str, location: str = "desktop") -> str:
         try:
             folder = self._resolve_location(location)
             new_folder = folder / foldername
             new_folder.mkdir(parents=True, exist_ok=True)
-            return f"Created folder {foldername} on your {location}."
+            return f"Folder '{foldername}' has been created in your {location}."
         except Exception as e:
-            return f"Could not create folder: {e}"
+            return f"I could not create the folder. Error: {e}"
 
-    def delete_file(self, filename, location="desktop"):
+    def delete_item(self, name: str, location: str = "desktop") -> str:
         try:
             folder = self._resolve_location(location)
-            filepath = folder / filename
+            filepath = folder / name
+            
+            if not filepath.exists():
+                # Fuzzy matching fallback
+                for file in folder.iterdir():
+                    if name.lower() in file.name.lower():
+                        filepath = file
+                        break
+            
             if filepath.exists():
                 if filepath.is_dir():
                     shutil.rmtree(filepath)
                 else:
                     filepath.unlink()
-                return f"Deleted {filename}."
-            return f"Could not find {filename}."
+                return f"Sir, I have deleted {filepath.name}."
+            return f"I could not find {name} in your {location}."
         except Exception as e:
-            return f"Could not delete: {e}"
+            return f"Could not delete the item. Error: {e}"
 
-    def rename_file(self, old_name, new_name, location="desktop"):
+    def list_files(self, location: str = "desktop") -> str:
         try:
             folder = self._resolve_location(location)
-            old_path = folder / old_name
-            new_path = folder / new_name
-            old_path.rename(new_path)
-            return f"Renamed {old_name} to {new_name}."
-        except Exception as e:
-            return f"Could not rename: {e}"
-
-    def move_file(self, filename, from_location, to_location):
-        try:
-            from_folder = self._resolve_location(from_location)
-            to_folder = self._resolve_location(to_location)
-            src = from_folder / filename
-            dst = to_folder / filename
-            shutil.move(str(src), str(dst))
-            return f"Moved {filename} to {to_location}."
-        except Exception as e:
-            return f"Could not move: {e}"
-
-    def copy_file(self, filename, from_location, to_location):
-        try:
-            from_folder = self._resolve_location(from_location)
-            to_folder = self._resolve_location(to_location)
-            src = from_folder / filename
-            dst = to_folder / filename
-            shutil.copy2(str(src), str(dst))
-            return f"Copied {filename} to {to_location}."
-        except Exception as e:
-            return f"Could not copy: {e}"
-
-    def list_files(self, location="desktop"):
-        try:
-            folder = self._resolve_location(location)
-            files = [f.name for f in folder.iterdir()]
+            files = [f.name for f in folder.iterdir() if f.name != "desktop.ini"]
             if not files:
-                return f"No files found on {location}."
-            return f"Files on {location}: {', '.join(files[:5])}{'and more.' if len(files) > 5 else '.'}"
+                return f"Your {location} is currently empty."
+            
+            file_count = len(files)
+            display_files = ", ".join(files[:5])
+            if file_count > 5:
+                return f"There are {file_count} items in your {location}. The first few are: {display_files}."
+            return f"Files in {location}: {display_files}."
         except Exception as e:
-            return f"Could not list files: {e}"
+            return f"Could not list files. Error: {e}"
 
-    def open_folder(self, location="desktop"):
+    def open_folder(self, location: str = "desktop") -> str:
         try:
             folder = self._resolve_location(location)
+            # Cross-platform safe open (Windows specific explorer call)
             subprocess.Popen(f'explorer "{folder}"')
-            return f"Opening {location} folder."
+            return f"Opening your {location} folder now, Sir."
         except Exception as e:
-            return f"Could not open folder: {e}"
+            return f"Could not open the folder. Error: {e}"
 
-    def zip_file(self, filename, location="desktop"):
-        try:
-            folder = self._resolve_location(location)
-            filepath = folder / filename
-            zip_path = folder / f"{filename}.zip"
-            with zipfile.ZipFile(zip_path, 'w') as zf:
-                zf.write(filepath, filename)
-            return f"Zipped {filename} successfully."
-        except Exception as e:
-            return f"Could not zip: {e}"
-
-    def unzip_file(self, filename, location="desktop"):
-        try:
-            folder = self._resolve_location(location)
-            zip_path = folder / filename
-            with zipfile.ZipFile(zip_path, 'r') as zf:
-                zf.extractall(folder)
-            return f"Unzipped {filename} successfully."
-        except Exception as e:
-            return f"Could not unzip: {e}"
-
-    def empty_recycle_bin(self):
+    def empty_recycle_bin(self) -> str:
         try:
             subprocess.run(
-                ['powershell', '-Command', 'Clear-RecycleBin -Force'],
+                ['powershell', '-NoProfile', '-Command', 'Clear-RecycleBin -Force -Confirm:$false'],
                 capture_output=True
             )
-            return "Recycle bin emptied."
+            return "The recycle bin has been completely emptied, Sir."
         except Exception as e:
-            return f"Could not empty recycle bin: {e}"
+            return f"Failed to empty the recycle bin. Error: {e}"
 
-    def find_file(self, filename):
+    def find_file(self, filename: str) -> str:
         try:
+            # 15 second timeout to prevent system hang
             result = subprocess.run(
                 ['where', '/r', str(self.home), filename],
-                capture_output=True, text=True
+                capture_output=True, text=True, timeout=15
             )
             if result.stdout:
-                return f"Found {filename} at: {result.stdout.split()[0]}"
-            return f"Could not find {filename}."
+                first_match = result.stdout.strip().split('\n')[0]
+                return f"I found {filename}. It is located at: {first_match}"
+            return f"I searched your home directory, but could not find {filename}."
+        except subprocess.TimeoutExpired:
+            return f"Sir, the search for {filename} timed out. Your storage drive is too large to scan quickly."
         except Exception as e:
             return f"Search error: {e}"
 
     # ─────────────────────────────────────────
     # HELPER
     # ─────────────────────────────────────────
-    def _resolve_location(self, location):
-        locations = {
-            "desktop": self.desktop,
-            "downloads": self.downloads,
-            "documents": self.documents,
-            "home": self.home,
-        }
-        return locations.get(location.lower(), self.desktop)
+    def _resolve_location(self, loc_str: str) -> pathlib.Path:
+        for key in self.locations:
+            if key in loc_str.lower():
+                return self.locations[key]
+        return self.locations["desktop"] # Default
+
+    def _extract_name_and_loc(self, cmd: str, prefix_regex: str) -> tuple[str, str]:
+        """Extracts the target name and location using Regex."""
+        loc = "desktop"
+        for key in self.locations:
+            if re.search(r'\b' + key + r'\b', cmd):
+                loc = key
+                break
+        
+        # Strip out the location words to isolate the filename
+        clean_cmd = re.sub(r'(?:on|in|from|to)\s+(?:my\s+|the\s+)?(?:desktop|downloads|documents|home)', '', cmd).strip()
+        
+        match = re.search(prefix_regex + r'\s+["\']?([^"\']+)["\']?', clean_cmd)
+        name = match.group(1).strip() if match else "new_item"
+        return name, loc
 
     # ─────────────────────────────────────────
-    # EXECUTE — VOICE COMMAND ROUTER
+    # EXECUTE — NLP VOICE COMMAND ROUTER
     # ─────────────────────────────────────────
-    def execute(self, command):
-        command_lower = command.lower()
+    def execute(self, command: str) -> Optional[str]:
+        if not command: return None
+        cmd = command.lower().strip()
 
-        # Open folder
-        if any(w in command_lower for w in ["open desktop", "open downloads", "open documents", "open folder"]):
-            for loc in ["desktop", "downloads", "documents"]:
-                if loc in command_lower:
-                    return self.open_folder(loc)
-            return self.open_folder("desktop")
+        # 1. Open Folder
+        if re.search(r"^(?:open|show)\s+(?:my\s+|the\s+)?(desktop|downloads|documents|folder)", cmd):
+            return self.open_folder(cmd)
 
-        # List files
-        if any(w in command_lower for w in ["list files", "show files", "what's on"]):
-            for loc in ["desktop", "downloads", "documents"]:
-                if loc in command_lower:
-                    return self.list_files(loc)
-            return self.list_files("desktop")
+        # 2. List Files
+        if re.search(r"^(?:list|show|what is on|what's on)\s+(?:my\s+|the\s+)?(desktop|downloads|documents|files)", cmd):
+            return self.list_files(cmd)
 
-        # Create file
-        if any(w in command_lower for w in ["create file", "new file", "make file"]):
-            words = command_lower.split()
-            for i, w in enumerate(words):
-                if w in ["called", "named"]:
-                    filename = words[i+1] if i+1 < len(words) else "newfile.txt"
-                    return self.create_file(filename)
-            return self.create_file("newfile.txt")
+        # 3. Create File
+        if re.search(r"(?:create|make|new)\s+(?:a\s+)?file", cmd):
+            name, loc = self._extract_name_and_loc(cmd, r"(?:called|named|file)\s*")
+            if name == "new_item": name = "new_file.txt"
+            return self.create_file(name, loc)
 
-        # Create folder
-        if any(w in command_lower for w in ["create folder", "new folder", "make folder"]):
-            words = command_lower.split()
-            for i, w in enumerate(words):
-                if w in ["called", "named"]:
-                    foldername = words[i+1] if i+1 < len(words) else "NewFolder"
-                    return self.create_folder(foldername)
-            return self.create_folder("NewFolder")
+        # 4. Create Folder
+        if re.search(r"(?:create|make|new)\s+(?:a\s+)?(?:folder|directory)", cmd):
+            name, loc = self._extract_name_and_loc(cmd, r"(?:called|named|folder)\s*")
+            if name == "new_item": name = "New_Folder"
+            return self.create_folder(name, loc)
 
-        # Delete
-        if any(w in command_lower for w in ["delete file", "remove file", "delete folder"]):
-            words = command_lower.split()
-            for i, w in enumerate(words):
-                if w in ["called", "named", "file", "folder"]:
-                    if i+1 < len(words):
-                        return self.delete_file(words[i+1])
+        # 5. Delete Item
+        if re.search(r"(?:delete|remove|trash)\s+(?:the\s+)?(?:file|folder|item)?", cmd):
+            name, loc = self._extract_name_and_loc(cmd, r"(?:delete|remove|file|folder)\s*")
+            return self.delete_item(name, loc)
 
-        # Zip
-        if "zip" in command_lower and "unzip" not in command_lower:
-            words = command_lower.split()
-            for i, w in enumerate(words):
-                if w == "zip" and i+1 < len(words):
-                    return self.zip_file(words[i+1])
-
-        # Unzip
-        if "unzip" in command_lower or "extract" in command_lower:
-            words = command_lower.split()
-            for i, w in enumerate(words):
-                if w in ["unzip", "extract"] and i+1 < len(words):
-                    return self.unzip_file(words[i+1])
-
-        # Empty recycle bin
-        if any(w in command_lower for w in ["empty recycle", "clear recycle", "empty trash"]):
+        # 6. Empty Recycle Bin
+        if re.search(r"(?:empty|clear)\s+(?:the\s+)?(?:recycle bin|trash)", cmd):
             return self.empty_recycle_bin()
 
-        # Find file
-        if any(w in command_lower for w in ["find file", "search file", "where is"]):
-            words = command_lower.split()
-            if words:
-                return self.find_file(words[-1])
+        # 7. Find/Search File
+        match = re.search(r"(?:find|search for|where is)\s+(?:the\s+)?(?:file\s+)?(?:called\s+|named\s+)?[\"']?([^\"']+)[\"']?", cmd)
+        if match:
+            return self.find_file(match.group(1).strip())
 
         return None

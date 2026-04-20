@@ -8,6 +8,7 @@
 # ============================================================
 
 # ── Core Skills ─────────────────────────────────────────────
+from skills.vision             import VisionSkill
 from skills.clock              import ClockSkill
 from skills.hello              import HelloSkill
 from skills.notes              import NotesSkill
@@ -37,7 +38,6 @@ from skills.whatsapp_pro       import WhatsappProSkill
 from skills.scheduler          import SchedulerSkill
 from skills.study_vault        import StudyVaultSkill
 from skills.file_vault         import FileVaultSkill
-from skills.vision             import VisionSkill
 from skills.voice_neural       import VoiceNeuralSkill
 from skills.research_v2        import ResearchV2Skill
 
@@ -55,6 +55,7 @@ class SkillManager:
         self.skills = [
 
             # ── Core (high priority — fast match) ───────────
+            VisionSkill(),
             ClockSkill(),
             HelloSkill(),
             NotesSkill(),
@@ -84,9 +85,9 @@ class SkillManager:
             SchedulerSkill(),
             StudyVaultSkill(),
             FileVaultSkill(),
-            VisionSkill(),
             VoiceNeuralSkill(),
             ResearchV2Skill(),
+            VisionSkill(),
 
             # ── New Phase 4 ───────────────────────────────────
             MobileBridgeSkill(),

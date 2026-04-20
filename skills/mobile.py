@@ -6,7 +6,7 @@ import time
 import pyautogui
 import config
 
-class MobileSkills:
+class MobileSkill:
     def __init__(self):
         self.adb = "adb"
         self.contacts = {

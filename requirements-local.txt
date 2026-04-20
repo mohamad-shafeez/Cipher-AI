@@ -41,3 +41,9 @@ thefuzz[speedup]     # For NLP matching
 python-Levenshtein
 
 google-generativeai
+
+# --- Phase 5: Document & Image Organs ---
+python-pptx==0.6.23
+requests==2.31.0
+python-dotenv==1.0.1
+BingImageCreator==0.4.4

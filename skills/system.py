@@ -5,9 +5,9 @@ import os
 import subprocess
 import pyperclip
 import platform
-import config
+# import config
 
-class SystemSkills:
+class SystemSkill:
     def __init__(self):
         print(">> Initializing System Skills...")
         self.os = platform.system()  # 'Windows', 'Linux', 'Darwin'

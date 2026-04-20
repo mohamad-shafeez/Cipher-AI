@@ -23,8 +23,10 @@ from core.speak          import Speaker
 from core.fast_loader    import FastSkillLoader      # ← replaces SkillManager
 from core.agent          import CipherAgent
 from core.context        import SessionContext
+from skills.plagiarism_guardian import get_result, set_result
 from skills.turbo_brain  import turbo_think          # ← fast LLM call
 import config
+from skills.autonomous_coder import get_pending_patch, set_pending_patch, clear_pending_patch
 
 # ── Flask ─────────────────────────────────────────────────────
 app     = Flask(__name__)
@@ -32,12 +34,15 @@ CORS(app)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 WEB_DIR  = os.path.join(BASE_DIR, 'web')
 
+# Declare globals BEFORE the boot function so Python knows they exist
+ear = brain = mouth = skills = agent = context = None
+
 # ── Boot sequence ─────────────────────────────────────────────
 def boot():
     import time
     t0 = time.perf_counter()
     print("=" * 52)
-    print(f"   {config.ASSISTANT_NAME.upper()} OS  — BOOTING")
+    print(f"   {config.ASSISTANT_NAME.upper()} OS  — GHOST BOOTING")
     print("=" * 52)
 
     global ear, brain, mouth, skills, agent, context
@@ -46,26 +51,24 @@ def boot():
     skills  = FastSkillLoader(max_workers=14)
 
     # 2. Core modules
-    print(">> Loading core modules...")
+    print(">> Initializing Neural Organs...")
     ear     = Listener()
     brain   = Brain()
     mouth   = Speaker()
 
-    # 3. Agent + Context
-    agent   = CipherAgent(skills, brain)
-    context = SessionContext(max_turns=6)
+    # 3. Agent + Context (INJECTING THE SPEAKER FOR GHOST MODE)
+    agent   = CipherAgent(skills, brain, speaker=mouth)
+    context = SessionContext(max_turns=config.MAX_CONTEXT_TURNS)
 
     # 4. Pre-warm Ollama in background (doesn't block boot)
     skills.prewarm_ollama()
 
     elapsed = time.perf_counter() - t0
-    print(f">> Boot complete in {elapsed:.2f}s")
+    print(f">> Ghost Systems Online in {elapsed:.2f}s")
     print("=" * 52)
 
-# Declare globals before boot() fills them
-ear = brain = mouth = skills = agent = context = None
-boot()
-
+# Notice we DO NOT call boot() here anymore!
+# It will be called at the very end of the file.
 
 # ── Core command processor ────────────────────────────────────
 def process_command(command_text: str):
@@ -161,51 +164,198 @@ def run_flask():
     import logging
     logging.getLogger('werkzeug').setLevel(logging.ERROR)
     # Allows connections from your phone/external devices
-app.run(host="0.0.0.0", port=5500, debug=False, use_reloader=False)
+    app.run(host="0.0.0.0", port=5500, debug=False, use_reloader=False)
 
 
-# ── CLI main loop ─────────────────────────────────────────────
-def main():
-    threading.Thread(target=run_flask, daemon=True).start()
-    print(f">> Web UI  →  http://localhost:5500")
-    print(f">> Chat    →  http://localhost:5500/chat.html")
-    print(f">> API     →  http://localhost:5500/api/command")
-
-    mouth.speak(f"{config.ASSISTANT_NAME} is online.")
-
+# ── GHOST OS CORE ─────────────────────────────────────────────
+def summon_cipher():
+    """Triggered by the Hotkey. Wakes up the Ghost."""
+    print("\n>> [GHOST SUMMONED]")
+    
+    # 1. Trigger the Royal Greeting for Shafeez
+    if agent:
+        agent.activate_ghost() 
+    
+    # 2. Open the Voice Loop
     while True:
-        try:
-            print("\n>> SPACE = Voice  |  T = Type  |  Ctrl+C = Quit")
-            mode = None
-            while True:
-                ev = keyboard.read_event()
-                if ev.event_type == keyboard.KEY_DOWN:
-                    if ev.name == 'space': mode = 'voice'; break
-                    if ev.name == 't':
-                        while keyboard.is_pressed('t'): pass
-                        mode = 'text'; break
+        user_text = ear.listen()
+        if not user_text: 
+            continue
+        
+        # 3. Dismissal Protocol (Voice Command to hide the Ghost)
+        if any(w in user_text.lower() for w in ["dismissed", "go to sleep", "close cipher", "goodbye"]):
+            mouth.speak("Returning to the shadows, Shafeez. Systems standing by.")
+            break # Exits the voice loop, returns to background waiting
+            
+        # 4. Process the command
+        response = process_command(user_text)
+        
+        if isinstance(response, dict):
+            mouth.speak(response.get('message', 'Done.'))
+        elif response:
+            mouth.speak(response)
 
-            if mode == 'voice':
-                mouth.speak("Yes sir?")
-                user_text = ear.listen()
-            else:
-                print("\n>> TEXT MODE")
-                user_text = input("> ")
+def ghost_listener():
+    """Monitors the hotkey silently in the background"""
+    import keyboard
+    # Bind Ctrl+Space to the summon function
+    keyboard.add_hotkey(config.GHOST_HOTKEY, summon_cipher)
+    
+    # Keep the program running at 0% CPU while waiting
+    keyboard.wait()
 
-            if not user_text:
-                continue
+# ══════════════════════════════════════════════════════════════
+# Cipher Autonomous Coder — Kill-Switch Web API
+# ══════════════════════════════════════════════════════════════
 
-            response = process_command(user_text)
+@app.route('/api/patch/pending', methods=['GET'])
+def api_patch_pending():
+    patch = get_pending_patch()
+    if not patch:
+        return jsonify({"status": "none"})
+    return jsonify({
+        "status":    "pending",
+        "file":      patch.get("file", ""),
+        "error":     patch.get("error", ""),
+        "diff":      patch.get("diff", ""),
+        "timestamp": patch.get("timestamp", ""),
+    })
 
-            if isinstance(response, dict):
-                mouth.speak(response.get('message', 'Done.'))
-            else:
-                mouth.speak(response)
+@app.route('/api/patch/decision', methods=['POST'])
+def api_patch_decision():
+    data = request.json or {}
+    decision = data.get("decision", "").lower()
 
-        except KeyboardInterrupt:
-            print(f"\n>> Shutting down {config.ASSISTANT_NAME}...")
-            os._exit(0)
+    if decision not in ("approved", "rejected"):
+        return jsonify({"error": "Invalid decision. Use 'approved' or 'rejected'."}), 400
 
+    patch = get_pending_patch()
+    if not patch:
+        return jsonify({"error": "No pending patch found."}), 404
+
+    patch["status"] = decision
+    set_pending_patch(patch)
+
+    return jsonify({"status": decision, "file": patch.get("file", "")})
+
+# ── EXECUTION ENTRY POINT ─────────────────────────────────────
+if __name__ == "__main__":
+    # 1. Run the system boot
+    boot()
+
+    # 2. Start Flask in a background thread for the Web HUD
+    import threading
+    threading.Thread(target=run_flask, daemon=True).start()
+    print(f">> Ghost HUD active at: http://localhost:{config.WEB_PORT}")
+
+    # 3. Start the Ghost Hotkey Listener
+    print(f">> GHOST MODE ACTIVE: Summon with {config.GHOST_HOTKEY.upper()}")
+    
+    try:
+        ghost_listener()
+    except KeyboardInterrupt:
+        import os
+        print(f"\n>> Shutting down {config.ASSISTANT_NAME} safely...")
+        os._exit(0)
+
+# ══════════════════════════════════════════════════════════════
+ 
+@app.route('/api/plagiarism/check', methods=['POST'])
+def api_plagiarism_check():
+    """
+    Trigger plagiarism analysis from Web UI.
+    Body: {
+      "text": "...",           # required if no file
+      "file_path": "...",      # optional: path to file
+      "compare_file": "...",   # optional: for doc vs doc mode
+      "mode": "internet"|"document"
+    }
+    """
+    data      = request.json or {}
+    text      = data.get("text", "").strip()
+    file_path = data.get("file_path", "").strip()
+    compare   = data.get("compare_file", "").strip()
+    mode      = data.get("mode", "internet")
+ 
+    # Find the skill instance
+    plag_skill = None
+    for skill in skills.skills:
+        if skill.__class__.__name__ == "PlagiarismGuardianSkill":
+            plag_skill = skill
+            break
+ 
+    if not plag_skill:
+        return jsonify({"error": "PlagiarismGuardianSkill not loaded."}), 503
+ 
+    if file_path:
+        command = f"check plagiarism in {file_path}"
+        if compare:
+            command = f"compare {file_path} with {compare} for plagiarism"
+    elif text:
+        command = f"plagiarism check this text: {text}"
+    else:
+        return jsonify({"error": "Provide 'text' or 'file_path'."}), 400
+ 
+    result_msg = plag_skill.execute(command)
+    return jsonify({"status": "started", "message": result_msg})
+ 
+ 
+@app.route('/api/plagiarism/result', methods=['GET'])
+def api_plagiarism_result():
+    """
+    Poll for analysis results.
+    Returns full report JSON when ready, or {"status": "pending"} while running.
+    """
+    from skills.plagiarism_guardian import get_result
+    result = get_result()
+    if not result:
+        return jsonify({"status": "pending"})
+    return jsonify({"status": "ready", "report": result})        
+# ══════════════════════════════════════════════════════════════
+# Cipher Autonomous Coder — Kill-Switch Web API
+# ══════════════════════════════════════════════════════════════
+
+@app.route('/api/patch/pending', methods=['GET'])
+def api_patch_pending():
+    patch = get_pending_patch()
+    if not patch:
+        return jsonify({"status": "none"})
+    return jsonify({
+        "status":    "pending",
+        "file":      patch.get("file", ""),
+        "error":     patch.get("error", ""),
+        "diff":      patch.get("diff", ""),
+        "timestamp": patch.get("timestamp", ""),
+    })
+
+@app.route('/api/patch/decision', methods=['POST'])
+def api_patch_decision():
+    data = request.json or {}
+    decision = data.get("decision", "").lower()
+
+    if decision not in ("approved", "rejected"):
+        return jsonify({"error": "Invalid decision. Use 'approved' or 'rejected'."}), 400
+
+    patch = get_pending_patch()
+    if not patch:
+        return jsonify({"error": "No pending patch found."}), 404
+
+    patch["status"] = decision
+    set_pending_patch(patch)
+
+    return jsonify({"status": decision, "file": patch.get("file", "")})
 
 if __name__ == "__main__":
-    main()
+    # 1. Boot all 36 skills silently
+    loader = FastLoader()
+    loader.boot_all()
+    
+    # 2. Start the Ghost Handler (Hotkey + Wake Word)
+    # This runs in the background. No window needed.
+    print(">> CIPHER OS: GHOST MODE ENGAGED")
+    print(">> Summon via 'Ctrl + Space' or 'Cipher'...")
+    
+    # Keep the main thread alive without using CPU
+    import time
+    while True:
+        time.sleep(1)

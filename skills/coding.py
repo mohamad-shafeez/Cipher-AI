@@ -1,12 +1,32 @@
 # skills/coding.py
+import re
 import subprocess
 import os
 import webbrowser
+import json
 from pathlib import Path
-import config
+from typing import Optional
 
-class CodingSkills:
+import config
+from google import genai
+
+
+class CodingSkill:
+    """
+    Neural-powered coding assistant with AI-driven code generation, 
+    auto‑scanning, and bug fixing using Gemini 1.5 Flash.
+    """
+
     def __init__(self):
+        # Initialise Gemini client
+        api_key = os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            print(">> CodingSkill WARNING: GEMINI_API_KEY environment variable not set.")
+            self.client = None
+        else:
+            self.client = genai.Client(api_key=api_key)
+
+        # Keep original boilerplates and snippets for backward compatibility
         self.boilerplates = {
             "python": '# Python Script\n\ndef main():\n    print("Hello, World!")\n\nif __name__ == "__main__":\n    main()\n',
             "javascript": '// JavaScript File\n\nfunction main() {\n    console.log("Hello, World!");\n}\n\nmain();\n',
@@ -29,6 +49,132 @@ class CodingSkills:
             "try except": "try:\n    pass\nexcept Exception as e:\n    print(f'Error: {e}')",
             "dictionary": 'my_dict = {"key": "value"}\nprint(my_dict.get("key"))',
         }
+
+    # ========== NEW NEURAL METHODS ==========
+
+    def execute_swarm(self, prompt: str) -> str:
+        """
+        Sends a prompt to Gemini 1.5 Flash, expecting a JSON object
+        where keys are filenames and values are code content.
+        Creates every file listed in the JSON.
+        """
+        if self.client is None:
+            return "Error: Gemini API key not configured. Please set GEMINI_API_KEY."
+
+        system_instruction = (
+            "Return a JSON object where keys are filenames and values are the code content. "
+            "Only output valid JSON, no extra text."
+        )
+        full_prompt = f"{system_instruction}\n\nUser request: {prompt}"
+
+        try:
+            print(">> [Swarm] Consulting the Neural Architect...")
+            response = self.client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=full_prompt
+            )
+            
+            raw = response.text.strip()
+            # Surgical JSON extraction
+            json_match = re.search(r'(\{.*\}|\[.*\])', raw, re.DOTALL)
+            if json_match:
+                raw = json_match.group(0)
+            else:
+                return f"Neural Error: Could not parse project structure."
+
+            files_map = json.loads(raw)
+            if not isinstance(files_map, dict):
+                return "AI did not return a valid project map."
+
+            created = []
+            print(f">> [Swarm] Generating {len(files_map)} files...")
+            
+            for filename, code in files_map.items():
+                # --- FIX: Directory creation MUST be inside the loop ---
+                directory = os.path.dirname(filename)
+                if directory:
+                    os.makedirs(directory, exist_ok=True)
+                
+                with open(filename, "w", encoding="utf-8") as f:
+                    f.write(code)
+                created.append(filename)
+
+            if created:
+                return f"Successfully created {len(created)} file(s): {', '.join(created)}"
+            else:
+                return "No files were generated."
+
+        except json.JSONDecodeError as e:
+            return f"Failed to parse AI response as JSON: {e}\nRaw response: {raw[:200]}"
+        except Exception as e:
+            return f"Error during swarm generation: {e}"
+
+    def auto_scan(self) -> str:
+        """
+        Lists all files and directories in the current working directory.
+        """
+        try:
+            items = os.listdir('.')
+            files = [f for f in items if os.path.isfile(f)]
+            dirs = [d for d in items if os.path.isdir(d)]
+
+            result = f"📁 Current directory: {os.getcwd()}\n"
+            if dirs:
+                result += f"\n📂 Directories ({len(dirs)}):\n  " + "\n  ".join(dirs)
+            if files:
+                result += f"\n\n📄 Files ({len(files)}):\n  " + "\n  ".join(files)
+            if not files and not dirs:
+                result += "\nDirectory is empty."
+            return result
+        except Exception as e:
+            return f"Error scanning directory: {e}"
+
+    def fix_my_code(self, filename: str) -> str:
+        """
+        Reads the content of the given file, sends it to Gemini for bug fixing,
+        and overwrites the file with the corrected version.
+        """
+        if self.client is None:
+            return "Error: Gemini API key not configured. Please set GEMINI_API_KEY."
+
+        path = Path(filename)
+        if not path.exists():
+            return f"File '{filename}' not found."
+
+        try:
+            with open(filename, "r", encoding="utf-8") as f:
+                original_code = f.read()
+
+            fix_prompt = (
+                f"Fix the bugs in the following code. Return only the corrected code, "
+                f"no explanations, no markdown formatting.\n\n```\n{original_code}\n```"
+            )
+
+            response = self.client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=fix_prompt
+            )
+            fixed_code = response.text.strip()
+
+            # Remove possible markdown code fences
+            if fixed_code.startswith("```"):
+                lines = fixed_code.splitlines()
+                if lines[0].startswith("```"):
+                    lines = lines[1:]
+                if lines and lines[-1].startswith("```"):
+                    lines = lines[:-1]
+                fixed_code = "\n".join(lines).strip()
+
+            # Overwrite the file
+            with open(filename, "w", encoding="utf-8") as f:
+                f.write(fixed_code)
+
+            return f"✅ Fixed '{filename}' and saved corrections."
+
+        except Exception as e:
+            return f"Error fixing code: {e}"
+
+    # ========== LEGACY METHODS (kept for compatibility) ==========
 
     def open_vscode(self, target=None):
         try:
@@ -138,31 +284,53 @@ class CodingSkills:
         return None
 
     def execute(self, command):
-        command = command.lower()
+        command_lower = command.lower()
+
+        # Route to neural swarm if user asks for code generation
+        if any(w in command_lower for w in ["generate code", "create project", "build an app", "write multiple files"]):
+            # Extract the actual prompt after the command words
+            prompt = command
+            for prefix in ["generate code", "create project", "build an app", "write multiple files"]:
+                if command_lower.startswith(prefix):
+                    prompt = command[len(prefix):].strip()
+                    break
+            return self.execute_swarm(prompt)
+
+        # Auto-scan command
+        if any(w in command_lower for w in ["scan directory", "list files", "what files", "auto scan"]):
+            return self.auto_scan()
+
+        # Fix my code command
+        if any(w in command_lower for w in ["fix my code", "debug file", "correct errors in"]):
+            words = command.split()
+            for i, w in enumerate(words):
+                if w.endswith(".py") or w.endswith(".js") or w.endswith(".html") or w.endswith(".css"):
+                    return self.fix_my_code(w)
+            return "Please specify a file to fix, e.g., 'fix my code main.py'"
 
         # Open VS Code
-        if any(w in command for w in ["open vs code", "open vscode", "launch vs code", "open editor"]):
+        if any(w in command_lower for w in ["open vs code", "open vscode", "launch vs code", "open editor"]):
             target = command.replace("open vs code", "").replace("open vscode", "").replace("launch vs code", "").replace("open editor", "").strip()
             return self.open_vscode(target if target else None)
 
         # Run a file
-        if any(w in command for w in ["run", "execute", "start"]):
+        if any(w in command_lower for w in ["run", "execute", "start"]):
             words = command.split()
             for word in words:
                 if word.endswith(".py") or word.endswith(".js"):
                     return self.run_file(word)
 
-        # Create a file
-        if any(w in command for w in ["create", "make", "new"]) and any(w in command for w in ["file", "script", "component"]):
+        # Create a file (legacy boilerplate)
+        if any(w in command_lower for w in ["create", "make", "new"]) and any(w in command_lower for w in ["file", "script", "component"]):
             return self.create_file(command)
 
         # Search Stack Overflow
-        if any(w in command for w in ["stack overflow", "stackoverflow", "search error", "how to fix"]):
+        if any(w in command_lower for w in ["stack overflow", "stackoverflow", "search error", "how to fix"]):
             query = command.replace("search stack overflow for", "").replace("stack overflow", "").replace("how to fix", "").strip()
             return self.search_stackoverflow(query)
 
-        # Write code snippet
-        if any(w in command for w in ["write", "give me", "show me", "code for"]):
+        # Write code snippet (legacy)
+        if any(w in command_lower for w in ["write", "give me", "show me", "code for"]):
             result = self.write_code(command)
             if result:
                 return result

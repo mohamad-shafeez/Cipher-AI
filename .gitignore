@@ -1,4 +1,8 @@
-# --- Python Basics ---
+# ==========================================
+# CIPHER OS — MASTER .GITIGNORE
+# ==========================================
+
+# ── Python Basics ──────────────────────────
 __pycache__/
 *.pyc
 *.pyo
@@ -7,29 +11,79 @@ __pycache__/
 env/
 venv/
 .venv/
+*.egg-info/
+dist/
+build/
 
-# --- Cipher Secrets & Config ---
+# ── Cipher Secrets & Config (CRITICAL) ─────
 .env
 config_local.py
+*.key
+*.pem
+*.cert
 
-# --- Databases (Personal Data) ---
-*.db
-*.sqlite3
+# ── Personal Data & Memory (CRITICAL PRIVACY)
+cipher_data/            # memory.db, command_history.json, last_seen.png
+data/                   # contacts.json, logs.txt
+vault/
+knowledge_base/
+cipher_knowledge/       # Local AI knowledge base
 
-# --- AI Generated Content (Keep your repo clean) ---
-generated_code/
-cipher_knowledge/
+# ── Temporary Media & Vision (CRITICAL PRIVACY)
+temp_vision/            # DO NOT LEAK WEBCAM / SCREENSHOT CAPTURES
 temp/
-
-# --- Media & Audio (Large Files) ---
+temp_scripts/           # OS Automator generated scripts
+temp_data/              # Data Forge chart PNGs
 *.wav
 *.mp3
 *.mp4
 input.wav
 temp_input.wav
+temp_voice.mp3
 
-# --- Logs & OS Files ---
-data/logs.txt
+# ── AI Generated Content (Keep repo clean) ──
+generated_code/
+plagiarism_reports/
+cipher_data/codedebug/  # Autonomous Coder memory vault
+
+# ── Autonomous Coder Vault ──────────────────
+codedebug/              # Local vault at D:\Cipher Ai\codedebug
+
+# ── Logs & OS Files ─────────────────────────
 *.log
 .DS_Store
 Thumbs.db
+desktop.ini
+folder_structure.txt
+structure.txt
+
+# ── Text Files & Exceptions ─────────────────
+*.txt
+!requirements-local.txt   # KEEP — needed for pip install
+!README.md                 # KEEP — project documentation
+
+# ── Project Branding & Assets ───────────────
+*.ico
+*.png
+!web/**/*.ico
+!web/**/*.png
+!web/**/*.jpg
+!web/**/*.svg
+
+# ── IDE & Environment ───────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── Node (if any frontend tooling added) ────
+node_modules/
+npm-debug.log*
+
+# ── Sensitive files found in your project ───
+check_mic.py            # Local test script — don't push
+test.py                 # Local test script — don't push
+cipher_life.vbs         # Local launcher — contains paths
+Sentinel                # Binary — don't push
+ideogram-v3.0*.ico      # Local icon asset

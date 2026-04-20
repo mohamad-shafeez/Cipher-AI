@@ -4,7 +4,7 @@ import pyautogui
 import psutil
 import config
 
-class WindowSkills:
+class WindowSkill:
     def __init__(self):
         print(">> Window Skills: ONLINE")
 

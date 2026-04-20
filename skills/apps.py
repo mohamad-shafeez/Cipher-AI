@@ -1,108 +1,115 @@
 import os
 import subprocess
 import psutil
+import re
+from typing import Optional
 
-class AppSkills:
+class AppsSkill:
+    """
+    Cipher Skill — Advanced Application Manager
+    Dynamically locates, launches, and terminates Windows applications using Registry routing.
+    """
     def __init__(self):
-        print(">> App Skills: ONLINE")
-        # Maps keywords to (Display Name, List of possible paths)
+        print(">> App Skills: ONLINE (Advanced Process Manager Active)")
+        # Map spoken names to (Display Name, [Exact Process Names], [Windows Launch Commands])
         self.apps = {
-            "chrome": ("Chrome", [
-                r"C:\Program Files\Google\Chrome\Application\chrome.exe",
-                r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
-                os.path.expanduser(r"~\AppData\Local\Google\Chrome\Application\chrome.exe")
-            ]),
-            "vs code": ("VS Code", [
-                r"C:\Users\MOHAMAD SHAFEEZ\AppData\Local\Programs\Microsoft VS Code\Code.exe",
-                os.path.expanduser(r"~\AppData\Local\Programs\Microsoft VS Code\Code.exe"),
-                r"C:\Program Files\Microsoft VS Code\Code.exe"
-            ]),
-            "spotify": ("Spotify", [
-                r"C:\Users\MOHAMAD SHAFEEZ\AppData\Roaming\Spotify\Spotify.exe",
-                os.path.expanduser(r"~\AppData\Roaming\Spotify\Spotify.exe")
-            ]),
-            "notepad": ("Notepad", ["notepad.exe"]),
-            "terminal": ("Terminal", ["wt.exe", "cmd.exe"]),
-            "powershell": ("PowerShell", ["powershell.exe"]),
-            "calculator": ("Calculator", ["calc.exe"]),
-            "paint": ("Paint", ["mspaint.exe"]),
-            "vlc": ("VLC", [r"C:\Program Files\VideoLAN\VLC\vlc.exe"]),
-            "word": ("Word", ["winword.exe"]),
-            "excel": ("Excel", ["excel.exe"]),
-            "powerpoint": ("PowerPoint", ["powerpnt.exe"]),
-            "settings": ("Settings", ["ms-settings:"]),
-            "task manager": ("Task Manager", ["taskmgr.exe"]),
-            "file explorer": ("Explorer", ["explorer.exe"])
+            "chrome": ("Google Chrome", ["chrome.exe"], ["chrome"]),
+            "vs code": ("VS Code", ["Code.exe"], ["code"]),
+            "visual studio code": ("VS Code", ["Code.exe"], ["code"]),
+            "spotify": ("Spotify", ["Spotify.exe"], ["spotify"]),
+            "notepad": ("Notepad", ["notepad.exe"], ["notepad"]),
+            "terminal": ("Terminal", ["wt.exe", "cmd.exe"], ["wt", "cmd"]),
+            "powershell": ("PowerShell", ["powershell.exe"], ["powershell"]),
+            "calculator": ("Calculator", ["CalculatorApp.exe", "calc.exe"], ["calc"]),
+            "paint": ("Paint", ["mspaint.exe"], ["mspaint"]),
+            "vlc": ("VLC Media Player", ["vlc.exe"], ["vlc"]),
+            "word": ("Microsoft Word", ["WINWORD.EXE"], ["winword"]),
+            "excel": ("Microsoft Excel", ["EXCEL.EXE"], ["excel"]),
+            "powerpoint": ("PowerPoint", ["POWERPNT.EXE"], ["powerpnt"]),
+            "settings": ("Settings", ["SystemSettings.exe"], ["ms-settings:"]),
+            "task manager": ("Task Manager", ["Taskmgr.exe"], ["taskmgr"]),
+            "file explorer": ("File Explorer", ["explorer.exe"], ["explorer"])
         }
-
-        # Block list to avoid conflicts with browser.py and mobile.py
-        self.websites = ["youtube", "google", "github", "gmail", "facebook", "instagram", "twitter", "whatsapp"]
-
-    def launch_app(self, app_name):
-        app_name = app_name.lower().strip()
         
-        # Longest match first logic
+        # Ignored keywords to prevent overlapping with Browser or OS-level commands
+        self.ignored_keywords = [
+            "youtube", "google", "github", "gmail", "facebook", "instagram", 
+            "twitter", "whatsapp", "phone", "mobile", "shutdown", "restart"
+        ]
+
+    def launch_app(self, app_name: str) -> str:
         target_key = None
-        for key in sorted(self.apps.keys(), key=len, reverse=True):
-            if key in app_name:
+        for key in self.apps.keys():
+            if re.search(r'\b' + re.escape(key) + r'\b', app_name):
                 target_key = key
                 break
         
         if not target_key:
-            return None
-
-        display_name, paths = self.apps[target_key]
-
-        for path in paths:
+            # Fallback: If not in our dictionary, let Windows try to find it blindly
+            clean_name = re.sub(r'^(?:open|launch|start|run)\s+', '', app_name).strip()
             try:
-                if path.startswith("ms-"): # Handle Windows Settings
-                    subprocess.Popen(f"start {path}", shell=True)
-                    return f"Sir, opening your {display_name}."
-                
-                # Check if path is just a command (like notepad.exe) or a full path
-                if "\\" not in path or os.path.exists(path):
-                    # Launch and detach so Cipher doesn't wait
-                    subprocess.Popen(
-                        path if "\\" not in path else [path],
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
-                        creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0
-                    )
-                    return f"Sir, opening {display_name} for you."
+                subprocess.Popen(f"start {clean_name}", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                return f"Sir, attempting to launch {clean_name.capitalize()} via the Windows registry."
+            except Exception:
+                return f"Sir, I could not find an application named {clean_name}."
+
+        display_name, _, commands = self.apps[target_key]
+
+        # Launch using the recognized Windows alias
+        for cmd in commands:
+            try:
+                if cmd.startswith("ms-"):
+                    subprocess.Popen(f"start {cmd}", shell=True)
+                else:
+                    subprocess.Popen(f"start {cmd}", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                return f"Sir, opening {display_name}."
             except Exception:
                 continue
         
-        return f"Sir, I found the path for {display_name}, but I couldn't launch it."
+        return f"Sir, I recognized {display_name}, but the executable failed to launch."
 
-    def kill_app(self, app_name):
+    def kill_app(self, app_name: str) -> str:
+        target_key = None
+        for key in self.apps.keys():
+            if re.search(r'\b' + re.escape(key) + r'\b', app_name):
+                target_key = key
+                break
+        
+        # Extract raw name if not found in dictionary
+        raw_name = re.sub(r'^(?:close|kill|stop|quit)\s+(?:the\s+)?(?:app\s+)?', '', app_name).strip()
+        
+        target_processes = self.apps[target_key][1] if target_key else [f"{raw_name}.exe", raw_name]
+        display_name = self.apps[target_key][0] if target_key else raw_name.capitalize()
+
+        killed_count = 0
         try:
-            killed = False
             for proc in psutil.process_iter(['name']):
-                if app_name.lower() in proc.info['name'].lower():
-                    proc.kill()
-                    killed = True
-            return f"Sir, I have closed {app_name}." if killed else f"Sir, {app_name} doesn't seem to be running."
+                proc_name = proc.info['name']
+                if proc_name and any(tp.lower() in proc_name.lower() for tp in target_processes):
+                    proc.terminate() # Graceful termination
+                    killed_count += 1
+            
+            if killed_count > 0:
+                return f"Sir, I have successfully closed {display_name}."
+            return f"Sir, {display_name} does not appear to be running."
+        except psutil.AccessDenied:
+            return f"Sir, I lack the administrator permissions required to close {display_name}."
         except Exception as e:
-            return f"I encountered an error while closing {app_name}."
+            return f"I encountered an error while trying to close {display_name}."
 
-    def execute(self, command):
-        command_lower = command.lower().strip()
+    def execute(self, command: str) -> Optional[str]:
+        if not command: return None
+        cmd = command.lower().strip()
 
-        # 1. SKIP Logic (Don't steal from other skills)
-        if any(site in command_lower for site in self.websites): return None
-        if "phone" in command_lower or "mobile" in command_lower: return None
-        if any(w in command_lower for w in ["shutdown", "restart"]): return None
+        if any(w in cmd for w in self.ignored_keywords):
+            return None
 
-        # 2. OPEN Logic
-        if any(w in command_lower for w in ["open", "launch", "start", "run"]):
-            return self.launch_app(command_lower)
+        # 1. Open / Launch Command
+        if re.search(r"^(?:open|launch|start|run)\s+(.+)", cmd):
+            return self.launch_app(cmd)
 
-        # 3. CLOSE Logic
-        if any(w in command_lower for w in ["close", "kill", "stop", "quit"]):
-            # Extract the app name from command
-            app_to_kill = command_lower
-            for verb in ["close", "kill", "stop", "quit", "app"]:
-                app_to_kill = app_to_kill.replace(verb, "").strip()
-            return self.kill_app(app_to_kill)
+        # 2. Close / Kill Command
+        if re.search(r"^(?:close|kill|stop|quit)\s+(.+)", cmd):
+            return self.kill_app(cmd)
 
         return None

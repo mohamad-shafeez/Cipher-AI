@@ -10,10 +10,12 @@ class Speaker:
     def __init__(self):
         print(f">> Loading Neural Voice for {config.ASSISTANT_NAME}...")
         pygame.mixer.init()
-        # "en-US-ChristopherNeural" is professional male. 
-        # "en-US-GuyNeural" or "en-GB-RyanNeural" are also great.
         self.voice = "en-US-ChristopherNeural" 
-        self.output_file = "temp_voice.mp3"
+        
+        # --- THE FIX: Absolute Path so the file never gets lost ---
+        base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+        self.output_file = os.path.join(base_dir, "temp_voice.mp3")
+        
         print(f">> Neural Voice: ONLINE")
 
     def clean_text(self, text):

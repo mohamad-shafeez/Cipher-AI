@@ -1,15 +1,19 @@
 import os
 import json
 import requests
+import config  # <--- Crucial: Link to the Central Command
 from datetime import datetime
 
 class KnowledgeForgeSkill:
     def __init__(self):
         self.knowledge_dir = "cipher_knowledge"
         os.makedirs(self.knowledge_dir, exist_ok=True)
-        self.ollama_url = "http://localhost:11434/api/generate"
-        self.model = "phi3.5"  # Using your NLP model for summarization
-        print(">> Knowledge Forge Skill: ONLINE (Self-Learning Active)")
+        
+        # Link directly to your global settings
+        self.ollama_url = config.OLLAMA_BASE_URL
+        self.model = config.LLM_MODEL  
+        
+        print(f">> Knowledge Forge Skill: ONLINE (Self-Learning via {self.model})")
 
     def _search_archives(self, query: str) -> str | None:
         results = []
