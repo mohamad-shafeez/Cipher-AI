@@ -2,6 +2,7 @@
 import wikipedia
 import webbrowser
 import config
+from typing import Optional
 
 class ResearchSkill:
     def __init__(self):
@@ -20,7 +21,7 @@ class ResearchSkill:
             try:
                 summary = wikipedia.summary(e.options[0], sentences=2)
                 return f"According to Wikipedia: {summary}"
-            except:
+            except Exception:
                 return f"Multiple results found. Did you mean: {', '.join(e.options[:3])}?"
         except wikipedia.exceptions.PageError:
             return f"I couldn't find a Wikipedia page for {query}."
@@ -63,7 +64,7 @@ class ResearchSkill:
     # ─────────────────────────────────────────
     # EXECUTE — VOICE COMMAND ROUTER
     # ─────────────────────────────────────────
-    def execute(self, command):
+    def execute(self, command: str) -> Optional[str]:
         command = command.lower()
 
         # Wikipedia triggers

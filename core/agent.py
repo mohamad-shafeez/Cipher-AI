@@ -7,6 +7,7 @@
 import json
 import time
 import requests
+import re
 from datetime import datetime
 import config
 
@@ -77,7 +78,8 @@ class CipherAgent:
         start = time.time()
 
         # ── 0. PRE-PROCESSING ───────────────────
-        noise_words = ["like", "for", "please", "just", "hey", "can", "you", "to"]
+        # Removed words that break skill triggers (like "to" and "for")
+        noise_words = ["please", "just", "hey", "can", "you", "cypher"] 
         clean_input = raw_input.lower()
         input_words = clean_input.split()
         processed_input = " ".join([w for w in input_words if w not in noise_words])
@@ -86,13 +88,10 @@ class CipherAgent:
         # Forced Planner triggers: "and", "then", "also", or the "fix" command
         is_compound = any(w in raw_input.lower() for w in [" and ", " then ", " also ", " fix "])
         
-        # God Mode Triggers for Fast-Path
-        god_mode_triggers = ["look", "see", "screen", "status", "who are you", "time"]
-        has_god_trigger = any(w in processed_input for w in god_mode_triggers)
-        
-        # FAST PATH: Only if it is NOT compound.
-        if not is_compound and (len(input_words) < 7 or has_god_trigger):
-            quick = self.skills.run_skills(processed_input)
+        # FAST PATH: If it's not a multi-step compound request, ALWAYS try skills first!
+        if not is_compound:
+            # We pass clean_input so skills that look for exact phrasing don't break
+            quick = self.skills.run_skills(clean_input)
             if quick:
                 self._remember("user",   raw_input)
                 self._remember("cipher", quick)
@@ -146,6 +145,14 @@ class CipherAgent:
             step_results.append({
                 "step": step_num, "skill": skill_hint, "result": result
             })
+            
+        # Synthesize final response
+        final_summary = self._synthesize(raw_input, step_results)
+        self._remember("user", raw_input)
+        self._remember("cipher", final_summary)
+        self._record_task(raw_input, step_results, final_summary)
+        return final_summary
+
     # ------------------------------------------------------------------ #
     #  PLANNING & SYNTHESIS                                              #
     # ------------------------------------------------------------------ #
@@ -164,8 +171,12 @@ class CipherAgent:
                 timeout=120
             )
             raw = resp.json().get("response", "").strip()
-            # Strip markdown fences if model added them
-            raw = raw.strip("```json").strip("```").strip()
+            
+            # Surgically extract JSON array in case the LLM yaps
+            json_match = re.search(r'\[.*\]', raw, re.DOTALL)
+            if json_match:
+                raw = json_match.group()
+                
             plan = json.loads(raw)
             if isinstance(plan, list) and all(isinstance(s, dict) for s in plan):
                 return plan
@@ -181,7 +192,6 @@ class CipherAgent:
         )
         prompt = SYNTH_PROMPT.format(original=original, steps=steps_text)
         try:
-            # 120s timeout for stability
             resp = requests.post(
                 OLLAMA_URL,
                 json={"model": MODEL, "prompt": prompt, "stream": False},
@@ -217,11 +227,9 @@ class CipherAgent:
         return "\n".join(lines) + "\n\nNow respond to: "
 
     def get_session_memory(self) -> list:
-        """Expose session memory (used by knowledge_forge or debug tools)."""
         return list(self.session_mem)
 
     def clear_session(self):
-        """Reset short-term memory on new chat session."""
         self.session_mem.clear()
         self._log("[AGENT] Session memory cleared.")
 
@@ -249,3 +257,22 @@ class CipherAgent:
     def _log(self, msg: str):
         if self._verbose:
             print(msg)
+
+    def clear_temp_files(self):
+        """Unified lifecycle management: Clean up temporary media."""
+        import os
+        import shutil
+        self._log("[AGENT] Sweeping temporary files...")
+        
+        if os.path.exists("temp_vision"):
+            try:
+                shutil.rmtree("temp_vision")
+            except Exception as e:
+                self._log(f"[AGENT] Failed to clear temp_vision: {e}")
+                
+        for f in ["temp_input.wav", "input.wav"]:
+            if os.path.exists(f):
+                try:
+                    os.remove(f)
+                except Exception as e:
+                    self._log(f"[AGENT] Failed to remove {f}: {e}")

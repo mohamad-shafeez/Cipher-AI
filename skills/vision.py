@@ -65,23 +65,6 @@ class VisionSkill:
             return f"Sorry, I couldn't analyse the screen due to an error: {str(e)}"
         
     def execute(self, command: str) -> Optional[str]:
-        cmd = command.lower().strip()
-
-        # Added "scan" and "display" to match the Planner's vocabulary
-        vision_anchors = ["look", "see", "screen", "visual", "monitor", "watching", "scan", "display"]
-
-        if any(anchor in cmd for anchor in vision_anchors):
-            words = cmd.split()
-            if len(words) < 5:
-                prompt = "What is on my screen right now? Describe it in 2 sentences."
-            else:
-                prompt = f"Look at my screen and answer this: {command}"
-            
-            return self.analyze_screen(prompt)
-
-        return None    
-
-    def execute(self, command: str) -> Optional[str]:
         """
         Main router. Uses 'Anchor Words' to capture the command
         even if the noise filter removes small words.

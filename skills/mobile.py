@@ -7,6 +7,16 @@ import pyautogui
 import config
 
 class MobileSkill:
+    TRIGGER_PHRASES = [
+        "instagram", "whatsapp", "telegram", "snapchat", "tiktok", "spotify",
+        "netflix", "maps", "camera", "youtube", "gmail", "facebook", "twitter",
+        "call", "ring", "dial", "sms", "text message", "send sms", "send message",
+        "take photo", "take picture", "record video", "start video",
+        "alarm", "wake me", "navigate", "directions to", "take me to",
+        "lock phone", "unlock phone", "hotspot", "phone volume",
+        "flashlight", "torch", "phone battery", "mobile battery", "mobile"
+    ]
+
     def __init__(self):
         self.adb = "adb"
         self.contacts = {

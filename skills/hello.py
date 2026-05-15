@@ -367,21 +367,26 @@ class HelloSkill:
         return colorize("\n".join(lines), Style.CYAN)
 
     # ----------------------------- command router -------------------------
+    def _record_and_return(self, cmd: str, result: str) -> str:
+        """Record command to history only when HelloSkill handles it."""
+        self.command_history.append(cmd)
+        self._save_history()
+        return result
+
     def execute(self, command: str) -> Optional[str]:
         """
         Advanced Dispatch Router.
         Replaces massive if/else chains with O(1) dictionary lookups.
+        History is only saved when this skill actually handles the command.
         """
         cmd = command.lower().strip()
-        self.command_history.append(cmd)
-        self._save_history()
 
         # ----- 1. Complex/Special Commands -----
         if cmd.startswith("personality "):
-            return self.set_personality(cmd.split(maxsplit=1)[1])
+            return self._record_and_return(cmd, self.set_personality(cmd.split(maxsplit=1)[1]))
 
         if cmd == "answer" and self.conversation_context and "riddle" in self.conversation_context[-1]:
-            return self.reveal_riddle_answer()
+            return self._record_and_return(cmd, self.reveal_riddle_answer())
 
         # ----- 2. The Smart Dictionary Router -----
         route_map = {
@@ -399,17 +404,17 @@ class HelloSkill:
         # Scan the input for known trigger words
         for trigger, action_function in route_map.items():
             if trigger in cmd:
-                return action_function()
+                return self._record_and_return(cmd, action_function())
 
         # ----- 3. Easter Eggs & Fallback -----
         if "42" in cmd or "universe" in cmd:
-            return "42, obviously. Now you know the ultimate secret."
+            return self._record_and_return(cmd, "42, obviously. Now you know the ultimate secret.")
         if "sudo" in cmd:
-            return "Nice try. But even with sudo, I don't obey that command."
+            return self._record_and_return(cmd, "Nice try. But even with sudo, I don't obey that command.")
         if "roll dice" in cmd:
-            return f"🎲 You rolled a {random.randint(1,6)}."
+            return self._record_and_return(cmd, f"🎲 You rolled a {random.randint(1,6)}.")
 
-        # Unknown command: store context and let the main Agent Brain handle it
+        # Unknown command: pass through without saving to disk
         self.conversation_context.append(cmd)
         return None
 

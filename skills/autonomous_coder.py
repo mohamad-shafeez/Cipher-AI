@@ -35,7 +35,7 @@ from collections import deque
 
 # ── CONFIGURATION ──────────────────────────────────────────────────────────────
 
-VAULT_ROOT      = Path(r"D:\Cipher Ai\codedebug")
+VAULT_ROOT      = Path(os.environ.get("CIPHER_VAULT_ROOT", Path(__file__).resolve().parent.parent / "codedebug"))
 MAX_TOKENS      = 15500          # Hard ceiling — leaves 500 tokens for LLM response
 AVG_CHARS_PER_TOKEN = 4          # Conservative estimate for token counting
 MAX_FIX_ATTEMPTS    = 3          # Max retries before marking as unfixed
@@ -1088,23 +1088,32 @@ class AutonomousCoderSkill:
         return SurgicalExecutor(vault, self._speaker)
 
     def _resolve_project_root(self, name: str) -> str | None:
-        """Try common locations for a project by name."""
-        candidates = [
-            Path(r"D:\Visual Studio") / name,
-            Path(r"D:\Projects") / name,
+        """Try common locations for a project by name.
+        
+        Search order:
+        1. CIPHER_PROJECT_DIRS env var (comma-separated list of directories)
+        2. Standard home-relative paths (Desktop, Documents, etc.)
+        3. Case-insensitive scan of the first existing custom dir
+        """
+        # Build candidate list from env var or sensible defaults
+        custom_dirs_str = os.environ.get("CIPHER_PROJECT_DIRS", "")
+        custom_dirs = [Path(d.strip()) for d in custom_dirs_str.split(",") if d.strip()] if custom_dirs_str else []
+
+        candidates = [d / name for d in custom_dirs] + [
             Path.home() / "Desktop" / name,
             Path.home() / "Documents" / name,
+            Path.home() / "Projects" / name,
             Path.home() / name,
         ]
         for c in candidates:
             if c.exists() and c.is_dir():
                 return str(c)
-        # Try case-insensitive search in D:\Visual Studio
-        vs_root = Path(r"D:\Visual Studio")
-        if vs_root.exists():
-            for d in vs_root.iterdir():
-                if d.is_dir() and d.name.lower() == name.lower():
-                    return str(d)
+        # Case-insensitive fallback scan in the first existing custom dir
+        for search_root in custom_dirs:
+            if search_root.exists():
+                for d in search_root.iterdir():
+                    if d.is_dir() and d.name.lower() == name.lower():
+                        return str(d)
         return None
 
     def _extract_project(self, command: str) -> str | None:

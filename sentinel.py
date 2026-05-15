@@ -1,7 +1,7 @@
 import os
 import subprocess
 import time
-import webbrowser
+import threading
 import sys
 import winsound  # Added for audio feedback
 
@@ -29,22 +29,28 @@ class Sentinel:
                                                  creationflags=subprocess.CREATE_NO_WINDOW)
             time.sleep(2)
 
-            # --- NEW APP WINDOW LOGIC ---
-            import webview
-            window = webview.create_window(
-                'CIPHER OS — NEURAL DASHBOARD', 
-                FRONTEND_URL,
-                width=1200, 
-                height=800,
-                resizable=True,
-                confirm_close=True,
-                background_color='#000000'
-            )
-            webview.start()
-            # ----------------------------
-
+            # Set awake state BEFORE starting webview (which is blocking)
             self.is_awake = True
             self.last_activity = time.time()
+
+            # --- APP WINDOW LOGIC (non-blocking) ---
+            def _start_webview():
+                import webview
+                window = webview.create_window(
+                    'CIPHER OS — NEURAL DASHBOARD', 
+                    FRONTEND_URL,
+                    width=1200, 
+                    height=800,
+                    resizable=True,
+                    confirm_close=True,
+                    background_color='#000000'
+                )
+                webview.start()
+                # When the user closes the window, trigger hibernate
+                self.hibernate_system()
+
+            webview_thread = threading.Thread(target=_start_webview, daemon=True)
+            webview_thread.start()
 
     def hibernate_system(self):
         if self.is_awake:
@@ -62,7 +68,7 @@ class Sentinel:
         r.energy_threshold = 300 
         r.dynamic_energy_threshold = True
         
-        with sr.Microphone(device_index=1) as source:
+        with sr.Microphone(device_index=None) as source:
             # Fast 1-second calibration for better response
             r.adjust_for_ambient_noise(source, duration=1)
             
@@ -75,8 +81,10 @@ class Sentinel:
                     if any(word in text for word in WAKE_WORDS):
                         self.wake_system()
 
-                except:
-                    pass # Keep it silent in production
+                except KeyboardInterrupt:
+                    raise  # Allow Ctrl+C to exit gracefully
+                except Exception:
+                    pass  # Keep it silent in production
                 
                 # Auto-Sleep Logic
                 if self.is_awake and (time.time() - self.last_activity > SLEEP_TIMEOUT):

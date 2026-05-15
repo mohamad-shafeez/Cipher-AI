@@ -6,11 +6,12 @@ from datetime import datetime, timedelta
 from core.speak import Speaker # Import the speaker for background alerts
 
 class SchedulerSkill:
-    def __init__(self):
+    def __init__(self, speaker=None):
         self.reminders = []
         self.lock = threading.Lock()
         self.running = True
-        self.mouth = Speaker() # Background speaker instance
+        # Use shared Speaker if provided to avoid dual pygame mixer conflicts
+        self.mouth = speaker if speaker is not None else Speaker()
         
         # Start the background thread immediately
         self.thread = threading.Thread(target=self._scheduler_loop, daemon=True)

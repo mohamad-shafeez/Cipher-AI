@@ -256,6 +256,8 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         import os
         print(f"\n>> Shutting down {config.ASSISTANT_NAME} safely...")
+        if agent:
+            agent.clear_temp_files()
         os._exit(0)
 
 # ══════════════════════════════════════════════════════════════
@@ -312,50 +314,3 @@ def api_plagiarism_result():
         return jsonify({"status": "pending"})
     return jsonify({"status": "ready", "report": result})        
 # ══════════════════════════════════════════════════════════════
-# Cipher Autonomous Coder — Kill-Switch Web API
-# ══════════════════════════════════════════════════════════════
-
-@app.route('/api/patch/pending', methods=['GET'])
-def api_patch_pending():
-    patch = get_pending_patch()
-    if not patch:
-        return jsonify({"status": "none"})
-    return jsonify({
-        "status":    "pending",
-        "file":      patch.get("file", ""),
-        "error":     patch.get("error", ""),
-        "diff":      patch.get("diff", ""),
-        "timestamp": patch.get("timestamp", ""),
-    })
-
-@app.route('/api/patch/decision', methods=['POST'])
-def api_patch_decision():
-    data = request.json or {}
-    decision = data.get("decision", "").lower()
-
-    if decision not in ("approved", "rejected"):
-        return jsonify({"error": "Invalid decision. Use 'approved' or 'rejected'."}), 400
-
-    patch = get_pending_patch()
-    if not patch:
-        return jsonify({"error": "No pending patch found."}), 404
-
-    patch["status"] = decision
-    set_pending_patch(patch)
-
-    return jsonify({"status": decision, "file": patch.get("file", "")})
-
-if __name__ == "__main__":
-    # 1. Boot all 36 skills silently
-    loader = FastLoader()
-    loader.boot_all()
-    
-    # 2. Start the Ghost Handler (Hotkey + Wake Word)
-    # This runs in the background. No window needed.
-    print(">> CIPHER OS: GHOST MODE ENGAGED")
-    print(">> Summon via 'Ctrl + Space' or 'Cipher'...")
-    
-    # Keep the main thread alive without using CPU
-    import time
-    while True:
-        time.sleep(1)

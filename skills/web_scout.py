@@ -22,7 +22,7 @@ class WebScoutSkill:
             if response.status_code == 503:
                 return "Sir, Amazon has detected my probe and blocked the request. Please try again later."
                 
-            soup = BeautifulSoup(response.text, 'lxml')
+            soup = BeautifulSoup(response.text, 'html.parser')
             
             # Logic to find price whole and fraction
             prices = []
@@ -37,7 +37,7 @@ class WebScoutSkill:
                         price_str += "." + fraction.text.strip()
                     try:
                         prices.append(float(price_str))
-                    except:
+                    except ValueError:
                         continue
             
             if prices:

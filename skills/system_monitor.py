@@ -11,6 +11,7 @@ Responsibility:
 """
 
 import psutil
+import re
 
 
 class SystemMonitorSkill:
@@ -21,8 +22,8 @@ class SystemMonitorSkill:
 
     TRIGGER_PHRASES = [
         "battery",
-        "cpu",
-        "ram",
+        "check cpu",
+        "check ram",
         "memory",
         "system info",
         "system status",
@@ -47,7 +48,8 @@ class SystemMonitorSkill:
 
     def _is_triggered(self, command: str) -> bool:
         command_lower = command.lower().strip()
-        return any(phrase in command_lower for phrase in self.TRIGGER_PHRASES)
+        # Use regex word boundaries (\b) to prevent "instagram" from triggering "ram"
+        return any(re.search(rf'\b{re.escape(phrase)}\b', command_lower) for phrase in self.TRIGGER_PHRASES)
 
     def _get_cpu(self) -> str:
         """Returns current CPU usage as a percentage (1-second interval for accuracy)."""
@@ -97,9 +99,10 @@ class SystemMonitorSkill:
         """
         command_lower = command.lower()
 
-        wants_cpu = any(w in command_lower for w in ["cpu", "processor", "system info", "system status", "check system", "how is my system"])
-        wants_ram = any(w in command_lower for w in ["ram", "memory", "system info", "system status", "check system", "how is my system"])
-        wants_battery = any(w in command_lower for w in ["battery", "system info", "system status", "check system", "how is my system"])
+        # Word boundaries added here too so "check cpu and open instagram" doesn't trigger a RAM report
+        wants_cpu = any(re.search(rf'\b{re.escape(w)}\b', command_lower) for w in ["cpu", "processor", "system info", "system status", "check system", "how is my system"])
+        wants_ram = any(re.search(rf'\b{re.escape(w)}\b', command_lower) for w in ["ram", "memory", "system info", "system status", "check system", "how is my system"])
+        wants_battery = any(re.search(rf'\b{re.escape(w)}\b', command_lower) for w in ["battery", "system info", "system status", "check system", "how is my system"])
 
         # If none specifically matched (edge case), report everything
         if not any([wants_cpu, wants_ram, wants_battery]):

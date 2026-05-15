@@ -73,6 +73,8 @@ structure.txt
 # ── IDE & Environment ───────────────────────
 .vscode/
 .idea/
+.jetro/
+.cursor/
 *.swp
 *.swo
 *~
@@ -87,3 +89,9 @@ test.py                 # Local test script — don't push
 cipher_life.vbs         # Local launcher — contains paths
 Sentinel                # Binary — don't push
 ideogram-v3.0*.ico      # Local icon asset
+
+# --- Missing Secrets & Databases ---
+config.py
+skills/notes.db
+*.db
+structured.txt

@@ -1,20 +1,24 @@
 # skills/communication.py
+import os
 import webbrowser
 import time
 import pyautogui
 import urllib.parse
 import subprocess
 import config
+from dotenv import load_dotenv
+
+load_dotenv()
 
 class CommunicationSkills:
     def __init__(self):
         print(">> Communication Skills: ONLINE")
 
-        # Add your frequent contacts here
+        # Contacts loaded from environment variables (.env file)
         self.contacts = {
-            "mom": "+918217725385",
-            "dad": "+919902752275",
-            "shafeez": "+919513260316",
+            "mom": os.getenv("CONTACT_MOM", ""),
+            "dad": os.getenv("CONTACT_DAD", ""),
+            "shafeez": os.getenv("CONTACT_SHAFEEZ", ""),
         }
 
     # ─────────────────────────────────────────
