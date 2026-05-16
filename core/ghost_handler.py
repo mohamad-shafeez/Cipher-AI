@@ -20,6 +20,8 @@ class GhostAssistant:
     def listen_for_wake_word(self):
         # Battery-efficient background listening
         r = sr.Recognizer()
+        r.dynamic_energy_threshold = False
+        r.energy_threshold = 1500
         with sr.Microphone() as source:
             while True:
                 try:

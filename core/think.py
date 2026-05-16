@@ -192,6 +192,7 @@ class Brain:
     @staticmethod
     def _clean(text: str) -> str:
         """Strip special chars that sound bad in TTS."""
+        text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
         text = re.sub(r'[;:\-\*\#\|\`\_\~\^]', ' ', text)
         text = re.sub(r'\s+', ' ', text).strip()
         return text

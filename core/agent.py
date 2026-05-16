@@ -258,21 +258,35 @@ class CipherAgent:
                 json={
                     "model": "deepseek-r1:1.5b", 
                     "prompt": prompt, 
-                    "stream": False,
-                    "keep_alive": "-1"
+                    "stream": False
                 },
-                timeout=15
+                timeout=120
             )
-            raw = resp.json().get("response", "").strip()
-            
-            # Surgically extract JSON array in case the LLM yaps
-            json_match = re.search(r'\[.*\]', raw, re.DOTALL)
-            if json_match:
-                raw = json_match.group()
+            if resp.status_code != 200:
+                self._log(f"[AGENT] Ollama HTTP {resp.status_code} Error: Model likely not found or unloaded.")
+                return None
+            try:
+                data = resp.json()
+                raw_text = data.get("response", "")
+                # Strip DeepSeek <think> tags safely
+                clean_text = re.sub(r'<think>.*?</think>', '', raw_text, flags=re.DOTALL).strip()
+            except Exception as e:
+                self._log(f"[AGENT] Failed to parse Ollama response: {str(e)}")
+                return None
                 
-            plan = json.loads(raw)
-            if isinstance(plan, list) and all(isinstance(s, dict) for s in plan):
-                return plan
+            # Surgically extract JSON array in case the LLM yaps
+            json_match = re.search(r'\[.*\]', clean_text, re.DOTALL)
+            if json_match:
+                clean_text = json_match.group()
+                
+            try:
+                plan = json.loads(clean_text)
+                if isinstance(plan, list):
+                    return plan
+            except Exception as e:
+                self._log(f"[AGENT] JSON Parse Error: {str(e)}. Using fallback step.")
+                # Fallback step: just pass the input to the brain
+                return [{"step": 1, "skill": "brain", "instruction": user_input}]
         except Exception as e:
             self._log(f"[AGENT] Planning error: {e}")
         return None
@@ -293,9 +307,17 @@ class CipherAgent:
                     "stream": False,
                     "keep_alive": "5m"
                 },
-                timeout=15
+                timeout=120
             )
-            return resp.json().get("response", "Sir, all steps completed.").strip()
+            if resp.status_code != 200:
+                return f"Sir, all steps completed. (Fallback: HTTP {resp.status_code})"
+            try:
+                data = resp.json()
+                raw_text = data.get("response", "")
+                clean_text = re.sub(r'<think>.*?</think>', '', raw_text, flags=re.DOTALL).strip()
+                return clean_text if clean_text else "Sir, all steps completed."
+            except Exception as e:
+                return "Sir, all steps completed. (Synthesis parse error)"
         except:
             return "Sir, all steps completed successfully."
 

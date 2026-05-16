@@ -34,8 +34,8 @@ class Listener:
         self.PRE_BUFFER_SECS  = 0.4   # ring buffer before speech starts
 
         # ── Adaptive threshold ─────────────────────────────────
-        # Calibrated at boot — adjusts to your room's noise floor
-        self.THRESHOLD = self._calibrate_noise_floor()
+        # Hardcoded to 1500 to prevent background noise hallucination
+        self.THRESHOLD = 1500
 
         # ── Interrupt system ───────────────────────────────────
         # Set this flag True from another thread to cancel recording

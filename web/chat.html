@@ -207,9 +207,6 @@
         <!-- Tools tray -->
         <div class="dock-chips" id="dock-chips">
           <div class="dock-chip" onclick="insertCmd('build ')"><i class="fa fa-code"></i> Code Swarm</div>
-          <div class="dock-chip" onclick="openPlagPanel()">
-            <i class="fa fa-shield-halved"></i> Plagiarism Check
-          </div>
           <div class="dock-chip" onclick="openVault()">
             <i class="fa fa-folder-tree"></i> Vault Explorer
           </div>
@@ -262,7 +259,7 @@
             <button class="mic-btn" id="mic-btn" onclick="toggleMic()">
               <i class="fa fa-microphone"></i>
             </button>
-            <button class="send-btn" id="send-btn" onclick="sendMessage()">
+            <button class="send-btn" id="send-btn" type="button" onclick="sendMessage()">
               <i class="fa fa-paper-plane"></i>
             </button>
           </div>

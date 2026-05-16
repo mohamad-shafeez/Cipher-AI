@@ -8,108 +8,74 @@ import queue
 class Speaker:
     def __init__(self):
         print(f">> Loading Neural Voice for {config.ASSISTANT_NAME}...")
-        self.engine = pyttsx3.init()
-        self.engine.setProperty('rate', 170)
+        self._queue = queue.Queue()
+        self._lock  = threading.Lock() # 🔒 Physical lock for thread safety
+        self._thread = threading.Thread(target=self._worker, daemon=True)
+        self._thread.start()
+        print(f">> Voice: OFFLINE LOCAL (pyttsx3) — dedicated thread active")
 
-        # ── Streaming TTS state ─────────────────────────────────
-        self._stream_queue = queue.Queue()
-        self._stream_active = threading.Event()
-        self._stream_thread = None
-        print(f">> Voice: OFFLINE LOCAL (pyttsx3) — streaming enabled")
+    def _worker(self):
+        # Initialize pyttsx3 inside the dedicated thread
+        engine = pyttsx3.init()
+        engine.setProperty('rate', 170)
+        while True:
+            text = self._queue.get()
+            if text is None:
+                break
+            try:
+                # Use lock to prevent concurrent engine access
+                with self._lock:
+                    engine.say(text)
+                    engine.runAndWait()
+            except RuntimeError as re:
+                # Silently handle "run loop already started"
+                if "run loop already started" in str(re).lower():
+                    pass
+                else:
+                    print(f">> Speech Runtime Error: {re}")
+            except Exception as e:
+                print(f">> Speech Error: {e}")
+            finally:
+                self._queue.task_done()
 
     def clean_text(self, text):
+        text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
         text = re.sub(r'[;:\-\*\#\|]', ' ', text)
         text = re.sub(r'\s+', ' ', text)
         return text.strip()
 
     def speak(self, text):
-        """Standard blocking speak — says the full text at once."""
+        """Queues the text to be spoken by the background thread."""
         if not text:
             return
 
-        print(f"\n>> {config.ASSISTANT_NAME} speaking: {text}")
-
-        try:
-            cleaned = self.clean_text(text)
-            self.engine.say(cleaned)
-            self.engine.runAndWait()
-        except Exception as e:
-            print(f">> Speech Error: {e}")
+        cleaned = self.clean_text(text)
+        if not cleaned:
+            return
+            
+        print(f"\n>> {config.ASSISTANT_NAME} speaking: {cleaned}")
+        self._queue.put(cleaned)
 
     # ══════════════════════════════════════════════════════════
-    #  STREAMING TTS — speak sentence by sentence as they arrive
+    #  STREAMING TTS (Disabled to prevent thread collisions)
     # ══════════════════════════════════════════════════════════
 
     def speak_streamed(self, text_chunk: str):
-        """
-        Feed text chunks into the streaming pipeline.
-        The speaker will voice each chunk as soon as it arrives,
-        while the LLM continues generating the rest in the background.
-        """
-        if not text_chunk or not text_chunk.strip():
-            return
-        self._stream_queue.put(text_chunk)
-
-        # Start the consumer thread if not already running
-        if not self._stream_active.is_set():
-            self._stream_active.set()
-            self._stream_thread = threading.Thread(
-                target=self._stream_consumer, daemon=True
-            )
-            self._stream_thread.start()
+        """Falls back to queuing the text chunk."""
+        self.speak(text_chunk)
 
     def end_stream(self):
-        """Signal that no more chunks will arrive for this response."""
-        self._stream_queue.put(None)  # Sentinel
-
-    def _stream_consumer(self):
-        """Background thread: pulls chunks from the queue and voices them."""
-        try:
-            while True:
-                chunk = self._stream_queue.get(timeout=30)
-                if chunk is None:
-                    break  # End-of-stream sentinel
-
-                cleaned = self.clean_text(chunk)
-                if cleaned:
-                    print(f">> {config.ASSISTANT_NAME} (stream): {cleaned}")
-                    try:
-                        self.engine.say(cleaned)
-                        self.engine.runAndWait()
-                    except Exception as e:
-                        print(f">> Stream Speech Error: {e}")
-                        # Reinitialize engine on failure
-                        try:
-                            self.engine = pyttsx3.init()
-                            self.engine.setProperty('rate', 170)
-                        except Exception:
-                            pass
-
-        except queue.Empty:
-            pass  # Timeout — no more chunks
-        finally:
-            self._stream_active.clear()
-            # Drain any leftover items
-            while not self._stream_queue.empty():
-                try:
-                    self._stream_queue.get_nowait()
-                except queue.Empty:
-                    break
+        """No-op"""
+        pass
 
     def interrupt_stream(self):
-        """Stop the current streaming speech immediately."""
-        # Drain queue
-        while not self._stream_queue.empty():
+        """Drains the queue to cancel pending speech."""
+        while not self._queue.empty():
             try:
-                self._stream_queue.get_nowait()
+                self._queue.get_nowait()
+                self._queue.task_done()
             except queue.Empty:
                 break
-        # Push sentinel to stop consumer
-        self._stream_queue.put(None)
-        try:
-            self.engine.stop()
-        except Exception:
-            pass
 
 
 _global_speaker = None

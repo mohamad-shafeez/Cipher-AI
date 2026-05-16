@@ -51,7 +51,6 @@ prompt.addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
 });
 
-// --- UPDATED SEND MESSAGE (FOR NEURAL VOICE & STREAMING) ---
 async function sendMessage() {
   const text = prompt.value.trim();
   if (!text || S.loading) return;
@@ -73,85 +72,37 @@ async function sendMessage() {
         command: text, 
         voice: S.voiceEnabled 
       }),
-      signal: AbortSignal.timeout(60000),
+      signal: AbortSignal.timeout(120000), // 2 min headroom for local LLM
     });
 
     removeThinking(thinkId);
     
-    // We append an empty AI bubble first
-    S.msgCount++;
-    const now = fmtTime();
-    const g = document.createElement('div');
-    g.className = 'msg-group';
-    g.innerHTML = `
-      <div class="msg-label ai"><i class="fa fa-microchip"></i> CIPHER · ${now}</div>
-      <div class="msg-row">
-        <div class="msg-avatar ai"><i class="fa fa-robot"></i></div>
-        <div class="msg-bubble ai" id="stream-bubble-${S.msgCount}"></div>
-        <div class="msg-actions">
-          <button class="msg-action" onclick="copyBubble(this)" title="Copy"><i class="fa fa-copy"></i></button>
-          <button class="msg-action" onclick="speakBubble(this)" title="Speak"><i class="fa fa-volume-high"></i></button>
-        </div>
-      </div>
-    `;
-    msgWrap.appendChild(g);
-    scrollBottom();
-    const bubble = document.getElementById(`stream-bubble-${S.msgCount}`);
-
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let fullResponse = "";
-    let finalCode = null;
-    let buffer = "";
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, {stream: true});
-      const lines = buffer.split('\\n');
-      buffer = lines.pop(); 
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        try {
-          const parsed = JSON.parse(line);
-          if (parsed.response !== undefined) {
-             fullResponse = parsed.response;
-             finalCode = parsed.code;
-          } else if (parsed.chunk !== undefined) {
-             fullResponse += parsed.chunk;
-          }
-        } catch (e) {}
-      }
-      bubble.innerHTML = formatText(fullResponse);
-      scrollBottom();
-    }
-    
-    if (buffer.trim()) {
-      try {
-          const parsed = JSON.parse(buffer);
-          if (parsed.response !== undefined) {
-             fullResponse = parsed.response;
-             finalCode = parsed.code;
-          } else if (parsed.chunk !== undefined) {
-             fullResponse += parsed.chunk;
-          }
-      } catch (e) {}
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      const aiResponse = errData.response || `Backend Error (${res.status})`;
+      appendAI(aiResponse, null, text, true);
+      setStatus('OFFLINE', 'red');
+      S.loading = false;
+      return;
     }
 
-    g.remove(); // Remove streaming bubble, replace with robust appendAI
-    S.msgCount--; 
-    appendAI(fullResponse || '(No response)', finalCode || null, text);
+    const data = await res.json();
+    const aiResponse = data.response || "(No response generated)";
+    const finalCode = data.code || null;
+
+    appendAI(aiResponse, finalCode, text);
     setStatus('ONLINE', 'green');
 
   } catch (err) {
     removeThinking(thinkId);
-    appendAI('⚠ Connection failed.', null, text, true);
+    appendAI(`⚠ Connection failed: ${err.message}`, null, text, true);
     setStatus('OFFLINE', 'red');
   }
 
   S.loading = false;
   updateSessionMeta();
 }
+
 
 // --- DISABLE ROBOTIC VOICE ---
 function speakText(text) {

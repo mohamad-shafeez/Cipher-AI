@@ -13,7 +13,7 @@ import sys
 import os
 import threading
 import keyboard
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, Response, stream_with_context
 from flask_cors import CORS
 
 # ── Cipher modules ───────────────────────────────────────────
@@ -137,23 +137,23 @@ def serve_frontend(filename):
 
 @app.route('/api/command', methods=['POST'])
 def api_command():
-    data      = request.json or {}
-    user_text = data.get('command', '').strip()
-    voice     = data.get('voice', False)
-    print(f"\n[WEB] {user_text[:80]}")
-    if not user_text:
-        return jsonify({"response": "No command received."})
+    try:
+        data      = request.json or {}
+        user_text = data.get('command', '').strip()
+        voice     = data.get('voice', False)
         
-    def generate():
-        import json
-        import time
-        import threading
-        
+        print(f"\n[WEB] {user_text[:80]}")
+        if not user_text:
+            return jsonify({"response": "No command received.", "code": None})
+
+        # ── Synchronous execution ──────────────────────────────────
         result = process_command(user_text)
-        
+
+        # ── Voice handling ─────────────────────────────────────────
         if voice and mouth:
             text_to_speak = result.get("message", "") if isinstance(result, dict) else result
             if text_to_speak:
+                import threading
                 def speak_task():
                     if len(text_to_speak) > 120 and brain:
                         _stream_speak(text_to_speak, mouth)
@@ -161,17 +161,22 @@ def api_command():
                         mouth.speak(text_to_speak)
                 threading.Thread(target=speak_task).start()
 
+        # ── Final JSON Return ──────────────────────────────────────
         if isinstance(result, dict):
-            yield json.dumps({"response": result.get("message",""), "code": result.get("code","")}) + "\n"
-            return
-            
-        words = result.split(" ")
-        for i, word in enumerate(words):
-            chunk = word + (" " if i < len(words)-1 else "")
-            yield json.dumps({"chunk": chunk}) + "\n"
-            time.sleep(0.015)
+            return jsonify({
+                "response": result.get("message", ""),
+                "code":     result.get("code", None)
+            })
+        
+        return jsonify({
+            "response": str(result),
+            "code":     None
+        })
 
-    return Response(generate(), mimetype='application/x-ndjson')
+    except Exception as e:
+        print(f"API Error: {e}")
+        # Return 500 so frontend knows it's a server crash
+        return jsonify({"response": f"Backend Error: {str(e)}", "code": None}), 500
 
 @app.route('/api/agent/log', methods=['GET'])
 def api_agent_log():
@@ -352,6 +357,19 @@ if __name__ == "__main__":
     # 3. Start the Ghost Hotkey Listener
     print(f">> GHOST MODE ACTIVE: Summon with {config.GHOST_HOTKEY.upper()}")
     
+    # --- FIRE THE BOOT GREETING ---
+    try:
+        from skills.hello import HelloSkill
+        royal_welcome = HelloSkill().get_royal_greeting()
+        print(f"\n>> Cipher speaking: {royal_welcome}")
+        
+        # If you have your speaker/tts object available here, call it:
+        from core.speak import speak
+        speak(royal_welcome) 
+    except Exception as e:
+        print(f">> [Warning] Could not fire greeting: {e}")
+
+
     try:
         ghost_listener()
     except KeyboardInterrupt:
