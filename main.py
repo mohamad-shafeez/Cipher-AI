@@ -361,8 +361,10 @@ if __name__ == "__main__":
         if mouth:
             from skills.hello import HelloSkill
             royal_welcome = HelloSkill().get_royal_greeting()
-            print(f"\n>> {config.ASSISTANT_NAME} speaking: {royal_welcome}")
-            mouth.speak(royal_welcome)
+            # mouth.speak will handle the printing of the 'clean' version
+            # We print the 'full' version manually here for the technical readout
+            print(f"\n{royal_welcome['full']}")
+            mouth.speak(royal_welcome['clean'])
     except Exception as e:
         print(f">> [Warning] Could not fire greeting: {e}")
 

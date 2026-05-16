@@ -79,7 +79,8 @@ class Speaker:
         if not cleaned:
             return
             
-        print(f"\n>> {config.ASSISTANT_NAME} speaking: {cleaned}")
+        # mouth.speak() will no longer print its own text to terminal
+        # This prevents the "double printing" bug during boot and command loops.
         self._queue.put(cleaned)
 
     # ══════════════════════════════════════════════════════════

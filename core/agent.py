@@ -95,8 +95,11 @@ class CipherAgent:
         hello = HelloSkill()
         royal_welcome = hello.get_royal_greeting()
         
+        # Print full for visual readout, speak clean for audio
+        print(f"\n{royal_welcome['full']}")
+        
         if self.speaker:
-            self.speaker.speak(royal_welcome)
+            self.speaker.speak(royal_welcome['clean'])
         else:
             print(royal_welcome)
 

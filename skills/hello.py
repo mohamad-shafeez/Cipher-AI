@@ -203,8 +203,8 @@ class HelloSkill:
         return f"Personality changed to '{style}'. I shall now address you accordingly."
 
     # ----------------------------- greeting core --------------------------
-    def get_royal_greeting(self) -> str:
-        """Primary greeting – Updated with 20+ dynamic responses!"""
+    def get_royal_greeting(self) -> dict:
+        """Primary greeting – Returns both display and clean speech versions."""
         greetings = [
             # --- Neutral / Professional ---
             "Hello sir, how may I assist you?",
@@ -247,22 +247,21 @@ class HelloSkill:
             "Welcome back. I am fully loaded and ready to work."
         ]
         
-        # Pick a random greeting
+        # Pick a random base greeting
         base_greeting = random.choice(greetings)
+        full_display = base_greeting
         
-        # Attach the live system stats, IP, and pending tasks to the greeting
-        extra = []
-        
-        tasks = get_pending_tasks()
-        if tasks:
-            task_list = ", ".join(tasks[:3])
-            count = len(tasks)
-            extra.append(f" 📋 {count} pending task{'s' if count != 1 else ''}: {task_list}")
+        # 1. Attach pending tasks to display only
+        try:
+            tasks = get_pending_tasks()
+            if tasks:
+                task_list = ", ".join(tasks[:3])
+                count = len(tasks)
+                full_display += f" \n📋 {count} pending tasks: {task_list}"
+        except:
+            pass
 
-        if extra:
-            base_greeting += " " + " ".join(extra)
-
-        # Conversational Persistence: Memory Snippet
+        # 2. Attach memory snippet to display only
         try:
             import sqlite3
             db_path = "cipher_data/memory.db"
@@ -272,12 +271,15 @@ class HelloSkill:
                 if row:
                     content_str = str(row[0]).replace('\n', ' ')
                     snippet = content_str[:80] + "..." if len(content_str) > 80 else content_str
-                    base_greeting += f"\n 🧠 Memory Snippet: \"{snippet}\""
+                    full_display += f"\n🧠 Memory Snippet: \"{snippet}\""
                 conn.close()
-        except Exception as e:
+        except:
             pass
 
-        return colorize(base_greeting, Style.GREEN)
+        return {
+            "full": colorize(full_display, Style.GREEN),
+            "clean": base_greeting
+        }
 
     # ----------------------------- canned responses -----------------------
     def _get_entertainment_item(self, category: str) -> str:
@@ -369,7 +371,10 @@ class HelloSkill:
         # Scan the input for known trigger words
         for trigger, action_function in route_map.items():
             if trigger in cmd:
-                return self._record_and_return(cmd, action_function())
+                result = action_function()
+                if isinstance(result, dict) and "full" in result:
+                    return self._record_and_return(cmd, result["full"])
+                return self._record_and_return(cmd, result)
 
         # ----- 3. Easter Eggs & Fallback -----
         if "42" in cmd or "universe" in cmd:
@@ -411,7 +416,8 @@ def main():
     skill = HelloSkill()
 
     # Print initial welcome (only once)
-    print(skill.get_royal_greeting())
+    greeting_pkg = skill.get_royal_greeting()
+    print(greeting_pkg['full'])
     print(colorize("\n[Type 'help' for commands or 'bye' to exit]\n", Style.DIM))
 
     while True:
