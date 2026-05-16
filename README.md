@@ -89,14 +89,14 @@ Cipher is built around a **hybrid deterministic + generative pipeline**. The sys
 
 | Principle | Implementation |
 | :--- | :--- |
-| **Offline-first** | deepseek-r1:1.5b via Ollama — zero mandatory cloud dependency |
-| **Determinism** | Skills fire before the LLM is ever consulted |
-| **Parallel boot** | `fast_loader.py` loads all 45 skills concurrently in ~1.8s |
-| **LRU caching** | Repeated queries served from cache — no re-inference |
-| **Streaming LLM** | Token-by-token streaming from Ollama for near-zero latency |
-| **Adaptive listening**| VAD-calibrated mic threshold — never cuts you off mid-thought |
-| **Memory** | SQLite-backed `memory.db` for persistent conversation context |
-| **Ghost Mode** | Invisible background operation via `sentinel.py` |
+| **100% Local-First** | deepseek-r1:1.5b & qwen2.5-coder:7b via Ollama. Zero API dependency. Complete privacy. |
+| **Omnipresence & Vault**| Background execution with persistent markdown ledgers for multi-project memory tracking. |
+| **Determinism** | Skills fire before the LLM is ever consulted. |
+| **Parallel boot** | `fast_loader.py` loads all 45+ skills concurrently in ~1.8s. |
+| **Sliding Memory Window**| Smart RAM management: 7B model stays hot for 2 minutes after inference for instant follow-ups. |
+| **Streaming TTS** | Token-by-token streaming from Ollama piped directly into TTS for near-zero latency. |
+| **Memory** | SQLite-backed `memory.db` + RAG Vector Memory. |
+| **Ghost Mode** | Invisible background operation via `sentinel.py`. |
 
 ---
 
@@ -128,8 +128,9 @@ Cipher's capabilities are organized into skill organs — each a self-contained 
 - **Coding Swarm** — multi-agent code generation using parallel LLM workers (`codeskills/swarm.py`)
 - **Autonomous Coder** — Level 5 AI Software Engineer with FIM patching, Memory Vault, Sandbox Shield, and Kill-Switch approval (`autonomous_coder.py`)
 - **Autonomous Debugger** — self-directed bug detection and fix loop (`autonomous_debugger.py`)
-- **Vector Memory** — semantic search over conversation history (`vector_memory.py`)
+- **Vector Memory** — semantic search over conversation history + deep research docs (`vector_memory.py`)
 - **Knowledge Forge** — builds and queries a persistent local knowledge base (`knowledge_forge.py`)
+- **Skill Assimilator** — dynamic ingestion and translation of foreign `.py` scripts into native Cipher skills (`skill_assimilator.py`)
 - **Voice Neural** — Microsoft Edge Neural TTS (en-GB-RyanNeural) via edge-tts (`voice_neural.py`)
 
 ### 🎓 Academic Weapons
@@ -144,6 +145,7 @@ Cipher's capabilities are organized into skill organs — each a self-contained 
 - YouTube search
 - **Web Scout** — deep web scraping and LLM summarization (`web_scout.py`)
 - **Market Analyst** — financial data, moving averages, trend analysis via Yahoo Finance (`market_analyst.py`)
+- **Autonomous Deep Research** — web-scraping and LLM-driven synthesis into a permanent markdown knowledge vault (`deep_research.py`)
 - **Research V2** — DuckDuckGo + scrape + TurboBrain synthesis pipeline (`research_v2.py`)
 
 ### 💻 Coding & Dev Tools
@@ -168,7 +170,8 @@ Cipher's capabilities are organized into skill organs — each a self-contained 
 - **WhatsApp Pro** — ADB-based WhatsApp messaging — no Selenium, no browser (`whatsapp_pro.py`)
 - Browser automation — Chrome, Firefox control (`browser.py`)
 
-### 👁️ Vision
+### 👁️ Vision & Motor Control
+- **Project Ghost-Hand** — Autonomous GUI control. Captures screen, routes through `moondream` Vision-Language Model to extract UI coordinates, and executes clicks/typing via PyAutoGUI. Includes mouse-corner fail-safe. (`ghost_hand.py`)
 - **Vision Protocol** — screen/webcam capture + moondream vision model for image description (`vision_protocol.py`)
 - **Vision** — basic image capture and analysis (`vision.py`)
 
@@ -497,6 +500,13 @@ Three-phase detection pipeline with zero paid APIs:
 
 ### Determinism vs Generation
 The LLM is a fallback, not the controller. Skills always fire first — the LLM only handles what no skill matches. This eliminates hallucinations for system actions.
+
+---
+
+## 📜 Recent Updates / Changelog
+
+*Auto-documented by Cipher OS.*
+
 
 ---
 

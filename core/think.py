@@ -5,20 +5,7 @@ import datetime
 import os
 import re
 import threading
-import time # <--- Added for safety
-from dotenv import load_dotenv
-
-load_dotenv()
-
-# ── Gemini import — new non-deprecated SDK ─────────────────────
-try:
-    # This is the correct pattern for the new google-genai library
-    from google import genai as google_genai
-    from google.genai import types as genai_types
-    _GENAI_AVAILABLE = True
-except ImportError:
-    _GENAI_AVAILABLE = False
-
+import time
 
 class Brain:
     def __init__(self):
@@ -27,22 +14,7 @@ class Brain:
 
         # ── Interrupt flag (shared with Listener) ──────────────
         self.interrupt_flag = threading.Event()
-
-        # ── Gemini fallback (new SDK) ──────────────────────────
-        self.gemini_client = None
-        if _GENAI_AVAILABLE:
-            gemini_key = os.getenv("GEMINI_API_KEY", "").strip()
-            if gemini_key:
-                try:
-                    self.gemini_client = google_genai.Client(api_key=gemini_key)
-                    print(">> Neural Brain: Gemini Cloud Fallback ACTIVE (google.genai SDK)")
-                except Exception as e:
-                    print(f">> Neural Brain: Gemini init failed — {e}")
-            else:
-                print(">> Neural Brain: No GEMINI_API_KEY in .env — Gemini fallback DISABLED")
-        else:
-            print(">> Neural Brain: google-genai not installed — Gemini fallback DISABLED")
-            print("   Install with: pip install google-genai")
+        print(f">> Neural Brain: LOCAL ONLY MODE ACTIVE ({self.model})")
 
     # ── System context ─────────────────────────────────────────
 
@@ -66,7 +38,15 @@ class Brain:
             "Answer in 1-2 short sentences. English only. "
             "Never make up information. Never roleplay. "
             "If you don't know something, say 'I don't know.' "
+            "If the user asks about a complex, academic, scientific, or unfamiliar topic "
+            "and you are NOT confident in your answer, respond with: "
+            "'Sir, I do not have reliable knowledge on this topic. "
+            "Shall I initiate a deep research session to learn about it?' "
+            "NEVER fabricate facts about topics you are uncertain about. "
             "Never use special characters like semicolons, colons, dashes, asterisks, or hashes. "
+            "If the user is asking to fix a file, generate code, or perform a system action, do NOT just give advice. "
+            "Instead, return a structured response starting with 'COMMAND: [SkillName] [Instruction]'. "
+            "Example: 'COMMAND: AutonomousCoder fix the ZeroDivisionError in generated_code/test.py'. "
             f"{self.get_system_context()}"
         )
 
@@ -90,7 +70,7 @@ class Brain:
         recent = self.history[-8:]
 
         options = {
-            'num_predict': 120,   # was 30 — was cutting sentences in half
+            'num_predict': 120,   
             'temperature': 0.2,
             'top_k':       20,
             'top_p':       0.5,
@@ -110,7 +90,7 @@ class Brain:
 
         except Exception as e:
             print(f">> [Brain] Ollama error: {e}")
-            reply = self._gemini_fallback(user_text, system_prompt, recent)
+            reply = f"Local Neural Brain offline. Error: {e}"
 
         reply = self._clean(reply)
         self.history.append({'role': 'assistant', 'content': reply})
@@ -122,12 +102,6 @@ class Brain:
         """
         Generator that yields text chunks as the LLM produces them.
         Use this for voice output so Cipher starts speaking immediately.
-
-        Usage:
-            for chunk in brain.think_stream("what is AI"):
-                speaker.speak_chunk(chunk)
-                if brain.interrupt_flag.is_set():
-                    break
         """
         self.interrupt_flag.clear()
         self._trim_history()
@@ -164,12 +138,10 @@ class Brain:
                     print(">> [Brain] Stream interrupted.")
                     break
 
-                # 2. THE CRITICAL FIX: Use the new Ollama object pattern
+                # 2. Extract token safely
                 try:
-                    # Modern Ollama returns an object with attributes
                     token = chunk.message.content
                 except AttributeError:
-                    # Fallback if your library version is different
                     token = chunk.get('message', {}).get('content', '')
                 
                 if not token:
@@ -193,8 +165,7 @@ class Brain:
 
         except Exception as e:
             print(f">> [Brain] Ollama streaming error: {e}")
-            # Fall back to Gemini (non-streaming) if Ollama fails
-            reply = self._gemini_fallback(user_text, system_prompt, recent)
+            reply = f"Local Neural Brain offline. Error: {e}"
             reply = self._clean(reply)
             full_reply = reply
             yield reply
@@ -205,36 +176,6 @@ class Brain:
                 'role':    'assistant',
                 'content': self._clean(full_reply)
             })
-
-    # ── Gemini fallback (google.genai — new SDK) ───────────────
-
-    def _gemini_fallback(self, user_text: str, system_prompt: str, recent: list) -> str:
-        if not self.gemini_client:
-            return "Brain Error: Ollama is offline and no Gemini key is configured."
-
-        try:
-            print(">> [Brain] Routing to Gemini Neural Link...")
-
-            # Build a single prompt for Gemini
-            history_str = "\n".join(
-                f"{m['role'].upper()}: {m['content']}"
-                for m in recent[-4:]   # last 4 turns only for Gemini
-            )
-            full_prompt = (
-                f"{system_prompt}\n\n"
-                f"Recent conversation:\n{history_str}\n\n"
-                f"User: {user_text}"
-            )
-
-            response = self.gemini_client.models.generate_content(
-                model="gemini-1.5-flash",
-                contents=full_prompt,
-            )
-            return response.text or "I couldn't generate a response."
-
-        except Exception as g_err:
-            print(f">> [Brain] Gemini error: {g_err}")
-            return f"Both Ollama and Gemini are unreachable. Error: {g_err}"
 
     # ── Interrupt API ──────────────────────────────────────────
 

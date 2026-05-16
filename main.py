@@ -47,20 +47,23 @@ def boot():
 
     global ear, brain, mouth, skills, agent, context
 
-    # 1. Skills load in parallel (fastest step)
-    skills  = FastSkillLoader(max_workers=14)
-
-    # 2. Core modules
+    # 1. Start Ear and spawn daemon listener IMMEDIATELY
     print(">> Initializing Neural Organs...")
     ear     = Listener()
+    ear.start_background_listening(handle_voice_command)
+
+    # 2. Skills load in parallel (fastest step)
+    skills  = FastSkillLoader(max_workers=14)
+
+    # 3. Core modules
     brain   = Brain()
     mouth   = Speaker()
 
-    # 3. Agent + Context (INJECTING THE SPEAKER FOR GHOST MODE)
+    # 4. Agent + Context (INJECTING THE SPEAKER FOR GHOST MODE)
     agent   = CipherAgent(skills, brain, speaker=mouth)
     context = SessionContext(max_turns=config.MAX_CONTEXT_TURNS)
 
-    # 4. Pre-warm Ollama in background (doesn't block boot)
+    # 5. Pre-warm Ollama in background (doesn't block boot)
     skills.prewarm_ollama()
 
     elapsed = time.perf_counter() - t0
@@ -168,32 +171,48 @@ def run_flask():
 
 
 # ── GHOST OS CORE ─────────────────────────────────────────────
+def handle_voice_command(user_text):
+    """Callback for background microphone listener — now with streaming TTS."""
+    global agent, mouth, brain
+    if not agent or not mouth:
+        return # Still booting
+        
+    # Dismissal Protocol (Voice Command to hide the Ghost)
+    if any(w in user_text.lower() for w in ["dismissed", "go to sleep", "close cipher", "goodbye"]):
+        mouth.speak("Returning to the shadows, Shafeez. Systems standing by.")
+        return
+        
+    # Process the command
+    response = process_command(user_text)
+    
+    if isinstance(response, dict):
+        mouth.speak(response.get('message', 'Done.'))
+    elif response:
+        # ── Streaming TTS path ──────────────────────────────────
+        # If the response is long (likely from LLM), try to stream
+        # sentence-by-sentence for faster perceived response time.
+        if len(response) > 120 and brain:
+            _stream_speak(response, mouth)
+        else:
+            mouth.speak(response)
+
+
+def _stream_speak(text: str, speaker):
+    """Split a long response into sentences and stream them to TTS."""
+    import re
+    # Split on sentence boundaries while keeping the delimiters
+    sentences = re.split(r'(?<=[.!?])\s+', text)
+    for sentence in sentences:
+        sentence = sentence.strip()
+        if sentence:
+            speaker.speak_streamed(sentence)
+    speaker.end_stream()
+
 def summon_cipher():
     """Triggered by the Hotkey. Wakes up the Ghost."""
     print("\n>> [GHOST SUMMONED]")
-    
-    # 1. Trigger the Royal Greeting for Shafeez
     if agent:
         agent.activate_ghost() 
-    
-    # 2. Open the Voice Loop
-    while True:
-        user_text = ear.listen()
-        if not user_text: 
-            continue
-        
-        # 3. Dismissal Protocol (Voice Command to hide the Ghost)
-        if any(w in user_text.lower() for w in ["dismissed", "go to sleep", "close cipher", "goodbye"]):
-            mouth.speak("Returning to the shadows, Shafeez. Systems standing by.")
-            break # Exits the voice loop, returns to background waiting
-            
-        # 4. Process the command
-        response = process_command(user_text)
-        
-        if isinstance(response, dict):
-            mouth.speak(response.get('message', 'Done.'))
-        elif response:
-            mouth.speak(response)
 
 def ghost_listener():
     """Monitors the hotkey silently in the background"""

@@ -27,6 +27,72 @@ class VectorMemorySkill:
         """)
         self.conn.commit()
 
+    def save_interaction(self, command: str, result: str):
+        try:
+            self.conn.execute(
+                "INSERT INTO knowledge (topic, content, timestamp) VALUES (?, ?, ?)",
+                ("auto_memory", f"Command: {command}\nResult: {result}", datetime.now().isoformat())
+            )
+            self.conn.commit()
+        except Exception as e:
+            print(f"[VectorMemory Error] Failed to save interaction: {e}")
+
+    def similarity_search(self, query: str) -> str:
+        try:
+            words = query.lower().split()
+            if not words:
+                return ""
+            conditions = " OR ".join(["content LIKE ?"] * len(words))
+            params = [f"%{w}%" for w in words]
+            rows = self.conn.execute(
+                f"SELECT content FROM knowledge WHERE {conditions} ORDER BY id DESC LIMIT 3",
+                params
+            ).fetchall()
+            
+            db_res = " ".join([r[0] for r in rows]) if rows else ""
+            
+            # --- INFINITE RAG MEMORY (Project Ledgers) ---
+            project_res = []
+            if os.path.exists("projects"):
+                for root, dirs, files in os.walk("projects"):
+                    for file in files:
+                        if file.endswith(".md"):
+                            try:
+                                with open(os.path.join(root, file), "r", encoding="utf-8") as f:
+                                    content = f.read()
+                                    if any(w in content.lower() for w in words):
+                                        # Extract context snippet
+                                        project_res.append(f"[{file} Ledger Context]: {content[:500]}")
+                            except Exception:
+                                pass
+
+            # --- DEEP RESEARCH VAULT (my_research/) ---
+            research_res = []
+            if os.path.exists("my_research"):
+                for file in os.listdir("my_research"):
+                    if file.endswith(".md"):
+                        try:
+                            with open(os.path.join("my_research", file), "r", encoding="utf-8") as f:
+                                content = f.read()
+                                if any(w in content.lower() for w in words):
+                                    # Extract a larger snippet from research reports
+                                    research_res.append(
+                                        f"[Deep Research: {file}]: {content[:1000]}"
+                                    )
+                        except Exception:
+                            pass
+
+            full_context = db_res
+            if project_res:
+                full_context += "\n\nProject Ledgers Context:\n" + "\n".join(project_res[:2]) # Keep top 2
+            if research_res:
+                full_context += "\n\nDeep Research Vault:\n" + "\n".join(research_res[:2])  # Keep top 2
+
+            return full_context
+        except Exception as e:
+            print(f"[VectorMemory Error] Similarity search failed: {e}")
+            return ""
+
     def execute(self, command: str) -> str | None:
         try:
             if not command:

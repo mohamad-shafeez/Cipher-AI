@@ -8,23 +8,16 @@ from pathlib import Path
 from typing import Optional
 
 import config
-from google import genai
-
+import requests
 
 class CodingSkill:
     """
     Neural-powered coding assistant with AI-driven code generation, 
-    auto‑scanning, and bug fixing using Gemini 1.5 Flash.
+    auto‑scanning, and bug fixing using local Ollama.
     """
 
     def __init__(self):
-        # Initialise Gemini client
-        api_key = os.getenv("GEMINI_API_KEY")
-        if not api_key:
-            print(">> CodingSkill WARNING: GEMINI_API_KEY environment variable not set.")
-            self.client = None
-        else:
-            self.client = genai.Client(api_key=api_key)
+        print(f">> CodingSkill: LOCAL MODE ACTIVE ({config.LLM_MODEL})")
 
         # Keep original boilerplates and snippets for backward compatibility
         self.boilerplates = {
@@ -58,23 +51,27 @@ class CodingSkill:
         where keys are filenames and values are code content.
         Creates every file listed in the JSON.
         """
-        if self.client is None:
-            return "Error: Gemini API key not configured. Please set GEMINI_API_KEY."
-
         system_instruction = (
+            "You are an elite Frontend UI Designer and Architect. "
             "Return a JSON object where keys are filenames and values are the code content. "
-            "Only output valid JSON, no extra text."
+            "Only output valid JSON, no extra text. "
+            "PRIORITIZE modern aesthetics: use Glassmorphism, Dark Mode by default, and Tailwind CSS for styling."
         )
         full_prompt = f"{system_instruction}\n\nUser request: {prompt}"
 
         try:
-            print(">> [Swarm] Consulting the Neural Architect...")
-            response = self.client.models.generate_content(
-                model="gemini-2.0-flash",
-                contents=full_prompt
-            )
+            print(">> [Swarm] Consulting the Local Architect...")
+            response = requests.post(f"{config.OLLAMA_BASE_URL}/api/generate", json={
+                "model": "qwen2.5-coder:7b",
+                "prompt": full_prompt,
+                "stream": False,
+                "keep_alive": "2m"
+            }, timeout=120)
             
-            raw = response.text.strip()
+            if response.status_code != 200:
+                return f"Neural Error: Local model failed. {response.text}"
+                
+            raw = response.json().get("response", "").strip()
             # Surgical JSON extraction
             json_match = re.search(r'(\{.*\}|\[.*\])', raw, re.DOTALL)
             if json_match:
@@ -134,13 +131,6 @@ class CodingSkill:
         Reads the content of the given file, sends it to Gemini for bug fixing,
         and overwrites the file with the corrected version.
         """
-        if self.client is None:
-            return "Error: Gemini API key not configured. Please set GEMINI_API_KEY."
-
-        path = Path(filename)
-        if not path.exists():
-            return f"File '{filename}' not found."
-
         try:
             with open(filename, "r", encoding="utf-8") as f:
                 original_code = f.read()
@@ -150,11 +140,18 @@ class CodingSkill:
                 f"no explanations, no markdown formatting.\n\n```\n{original_code}\n```"
             )
 
-            response = self.client.models.generate_content(
-                model="gemini-2.0-flash",
-                contents=fix_prompt
-            )
-            fixed_code = response.text.strip()
+            print(f">> [Coder] Analyzing and patching '{filename}' locally...")
+            response = requests.post(f"{config.OLLAMA_BASE_URL}/api/generate", json={
+                "model": "qwen2.5-coder:7b",
+                "prompt": fix_prompt,
+                "stream": False,
+                "keep_alive": "2m"
+            }, timeout=120)
+            
+            if response.status_code != 200:
+                return f"Error fixing code: Local model failed. {response.text}"
+
+            fixed_code = response.json().get("response", "").strip()
 
             # Remove possible markdown code fences
             if fixed_code.startswith("```"):

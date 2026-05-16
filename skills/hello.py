@@ -99,36 +99,6 @@ class RoyalConfig:
 
 RoyalConfig.load()
 
-# ----------------------------- ascii art library ---------------------------
-ASCII_ARTS = {
-    "welcome": r"""
-    ╔══════════════════════════════════════════════════════════════════╗
-    ║     ██████╗ ██╗██████╗ ██╗  ██╗███████╗██████╗                  ║
-    ║     ██╔══██╗██║██╔══██╗██║  ██║██╔════╝██╔══██╗                  ║
-    ║     ██████╔╝██║██████╔╝███████║█████╗  ██████╔╝                  ║
-    ║     ██╔═══╝ ██║██╔═══╝ ██╔══██║██╔══╝  ██╔══██╗                  ║
-    ║     ██║     ██║██║     ██║  ██║███████╗██║  ██║                  ║
-    ║     ╚═╝     ╚═╝╚═╝     ╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝                  ║
-    ║                   DIGITAL FORTRESS – ROYAL EDITION                ║
-    ╚══════════════════════════════════════════════════════════════════╝
-    """,
-    "goodbye": r"""
-    ╔══════════════════════════════════════════════════════════════════╗
-    ║          ▄▄▄·  ▄▄▄· ▄▄▄  ▄▄▄ . ▐ ▄ ▄▄▄▄▄▪  ▄▄· ▄▄▄ .            ║
-    ║         ▐█ ▀█ ▐█ ▄█▐█ ▀█ ▀▄.▀·•█▌▐█•██  ██ ▐█ ▌▪▀▄.▀·            ║
-    ║         ▄█▀▀█ ▐█▀▀█▄█▀▀█ ▐▀▀▪▄▐█▐▐▌ ▐█.▪▐█ ██ ▄▄▐▀▀▪▄            ║
-    ║         ▐█ ▪▐▌██▄▪▐█▐█ ▪▐▌▐█▄▄▌██▐█▌ ▐█▌·▐█ ██▌▐▐█▄▄▌            ║
-    ║          ▀  ▀ ·▀▀▀▀  ▀  ▀  ▀▀▀ ▀▀ █▪ ▀▀▀  ▀▀▀  ▀  ▀▀▀             ║
-    ║                   RETURNING TO THE SHADOWS...                     ║
-    ╚══════════════════════════════════════════════════════════════════╝
-    """,
-    "thinking": r"""
-      (•_•)
-      <)   )╯
-       /   \ 
-    """,
-}
-
 # ----------------------------- helper functions ----------------------------
 def colorize(text: str, color_code: str = Style.WHITE) -> str:
     """Wrap text with ANSI color if enabled."""
@@ -140,27 +110,6 @@ def wrap_paragraph(text: str, width: int = 80) -> str:
     """Pretty wrap for long responses."""
     return "\n".join(textwrap.wrap(text, width=width))
 
-def get_system_stats() -> str:
-    """Return CPU and RAM usage if psutil is available."""
-    if not RoyalConfig.ENABLE_SYSTEM_STATS or not HAS_PSUTIL:
-        return ""
-    try:
-        cpu = psutil.cpu_percent(interval=0.5)
-        mem = psutil.virtual_memory()
-        return f" [⚙️ CPU {cpu}% | RAM {mem.percent}%]"
-    except Exception:
-        return ""
-
-def get_network_info() -> str:
-    """Get local IP address."""
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        ip = s.getsockname()[0]
-        s.close()
-        return f" 🌐 {ip}"
-    except Exception:
-        return ""
 
 def get_weather() -> str:
     """Fetch weather from OpenWeatherMap (optional)."""
@@ -254,38 +203,51 @@ class HelloSkill:
         return f"Personality changed to '{style}'. I shall now address you accordingly."
 
     # ----------------------------- greeting core --------------------------
-    def _get_time_greeting(self) -> Tuple[str, str]:
-        """Returns (formal_greeting, time_word) e.g. ('Good morning', 'morning')"""
-        hour = datetime.datetime.now().hour
-        if hour < 12:
-            return "Good morning", "morning"
-        elif hour < 18:
-            return "Good afternoon", "afternoon"
-        else:
-            return "Good evening", "evening"
-
-    def _format_greeting(self, template: str) -> str:
-        """Inject user, title, time greeting, system stats, tasks, weather."""
-        time_greeting, time_word = self._get_time_greeting()
-        base = template.format(
-            user=self.user,
-            title=self.title,
-            time_greeting=time_greeting,
-            time_word=time_word,
-            kernel=platform.release(),
-        )
-        # Add extra context
+    def get_royal_greeting(self) -> str:
+        """Primary greeting – Updated with 20+ dynamic responses!"""
+        greetings = [
+            # --- Neutral / Professional ---
+            "Hello sir, how may I assist you?",
+            "Good day. What can I help you with?",
+            "I’m ready. How may I assist you today?",
+            "Hello. Please tell me your command.",
+            
+            # --- Smart AI / Assistant tone ---
+            "System online. How can I assist you?",
+            "All systems ready. What’s your request?",
+            "Hello. I’m here to help you.",
+            "AI assistant activated. What do you need?",
+            
+            # --- Futuristic / Cyber style ---
+            "Welcome back. Command me.",
+            "Interface online. Speak your request.",
+            "Neural link active. What’s next?",
+            "Greetings, user. Awaiting input.",
+            
+            # --- Friendly / Soft tone ---
+            "Hi there! How can I help you today?",
+            "Hello! I’m here whenever you need me.",
+            "Hey! What can I do for you?",
+            "Hi! Just tell me what you need.",
+            
+            # --- Command-based / OS style ---
+            "Ready for instructions.",
+            "Awaiting your command.",
+            "Input received. Standing by.",
+            "State your task.",
+            
+            # --- ⚡ CIPHER EXCLUSIVES ⚡ ---
+            f"Digital Fortress secure. {self.config.ASSISTANT_NAME} is online.",
+            "Protocols initialized. What is our objective today, sir?",
+            "Core systems at optimal performance. Awaiting your command."
+        ]
+        
+        # Pick a random greeting
+        base_greeting = random.choice(greetings)
+        
+        # Attach the live system stats, IP, and pending tasks to the greeting
         extra = []
-        stats = get_system_stats()
-        if stats:
-            extra.append(stats)
-        net = get_network_info()
-        if net:
-            extra.append(net)
-        weather = get_weather()
-        if weather:
-            extra.append(weather)
-
+        
         tasks = get_pending_tasks()
         if tasks:
             task_list = ", ".join(tasks[:3])
@@ -293,26 +255,24 @@ class HelloSkill:
             extra.append(f" 📋 {count} pending task{'s' if count != 1 else ''}: {task_list}")
 
         if extra:
-            base += " " + " ".join(extra)
+            base_greeting += " " + " ".join(extra)
 
-        return base
+        # Conversational Persistence: Memory Snippet
+        try:
+            import sqlite3
+            db_path = "cipher_data/memory.db"
+            if os.path.exists(db_path):
+                conn = sqlite3.connect(db_path)
+                row = conn.execute("SELECT content FROM knowledge ORDER BY id DESC LIMIT 1").fetchone()
+                if row:
+                    content_str = str(row[0]).replace('\n', ' ')
+                    snippet = content_str[:80] + "..." if len(content_str) > 80 else content_str
+                    base_greeting += f"\n 🧠 Memory Snippet: \"{snippet}\""
+                conn.close()
+        except Exception as e:
+            pass
 
-    def get_royal_greeting(self) -> str:
-        """Primary greeting – fetches from personality.json"""
-        data = self._load_personality_data()
-        greetings_dict = data.get("greetings", {})
-        
-        # Fallback to royal if personality is missing
-        templates = greetings_dict.get(self.personality, greetings_dict.get("royal", ["Hello, Sir."]))
-        template = random.choice(templates)
-        
-        greeting = self._format_greeting(template)
-
-        if self.config.ENABLE_ASCII_ART and self.personality != "tech":
-            art = ASCII_ARTS.get("welcome", "")
-            greeting = f"{colorize(art, Style.CYAN)}\n{greeting}"
-
-        return colorize(greeting, Style.GREEN)
+        return colorize(base_greeting, Style.GREEN)
 
     # ----------------------------- canned responses -----------------------
     def _get_entertainment_item(self, category: str) -> str:
@@ -421,8 +381,6 @@ class HelloSkill:
     def _handle_goodbye(self) -> str:
         """Helper for the goodbye routing"""
         msg = f"Understood, {self.title}. Returning to the shadows. Systems standing by."
-        if self.config.ENABLE_ASCII_ART:
-            return colorize(ASCII_ARTS["goodbye"], Style.RED) + f"\n{msg}"
         return msg
 
     def show_help(self) -> str:
@@ -448,7 +406,6 @@ def main():
     skill = HelloSkill()
 
     # Print initial welcome (only once)
-    print(colorize(ASCII_ARTS["welcome"], Style.CYAN))
     print(skill.get_royal_greeting())
     print(colorize("\n[Type 'help' for commands or 'bye' to exit]\n", Style.DIM))
 

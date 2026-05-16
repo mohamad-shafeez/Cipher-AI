@@ -44,7 +44,7 @@ from skills.process_manager    import ProcessManagerSkill
 from skills.env_manager        import EnvManagerSkill
 from skills.clipboard_sync     import ClipboardSyncSkill
 from skills.turbo_brain        import TurboBrainSkill
-
+from skills.project_analyzer   import ProjectAnalyzerSkill
 
 class SkillManager:
     def __init__(self):
@@ -92,6 +92,7 @@ class SkillManager:
             EnvManagerSkill(),
             ClipboardSyncSkill(),
             TurboBrainSkill(),
+            ProjectAnalyzerSkill(),
         ]
 
     def run_skills(self, command: str) -> str | None:

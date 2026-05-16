@@ -213,6 +213,32 @@ class Listener:
         """Call from another thread to stop an active listen() call."""
         self.interrupt_flag.set()
 
+    def start_background_listening(self, callback):
+        """
+        Global Persistence: Runs the microphone listener in a non-blocking background thread.
+        Cipher remains active and responsive regardless of window focus.
+        """
+        def _loop():
+            print(">> Background Listener Active.")
+            while not self.interrupt_flag.is_set():
+                try:
+                    text = self.listen()
+                    if text and callback:
+                        callback(text)
+                except Exception as e:
+                    print(">> [Mic Reset] Recovering audio stream...")
+                    try:
+                        self.p.terminate()
+                    except:
+                        pass
+                    self.p = pyaudio.PyAudio()
+                    continue
+                time.sleep(0.1)
+        
+        t = threading.Thread(target=_loop, daemon=True)
+        t.start()
+        return t
+
     def recalibrate(self):
         """Re-run noise calibration (e.g. after moving rooms)."""
         self.THRESHOLD = self._calibrate_noise_floor()

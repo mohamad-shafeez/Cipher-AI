@@ -183,17 +183,16 @@ RULES:
 
     def _generate_project(self, user_request: str, plan: str) -> dict:
         """
-        Generates HTML, CSS, and JS as three separate files inside a project subfolder.
+        Generates HTML, CSS, and JS as three separate files directly in the generated_code folder.
         The HTML file references style.css and script.js via relative paths.
 
         Returns:
             dict with keys: project_dir, files (dict of filename→code), main_file, main_code
         """
-        project_name = self._derive_project_name(user_request)
-        project_dir = os.path.join(self.output_dir, project_name)
+        project_dir = self.output_dir
         os.makedirs(project_dir, exist_ok=True)
 
-        print(f">> [Project Mode] Creating project folder: {project_dir}")
+        print(f">> [Project Mode] Saving files directly into: {project_dir}")
 
         generated = {}
 

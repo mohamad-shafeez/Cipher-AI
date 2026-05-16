@@ -120,14 +120,21 @@ class DebuggerSkill:
         relative = os.path.relpath(most_recent, self.GENERATED_CODE_DIR)
         return relative
 
+    def _extract_filename(self, command: str) -> str | None:
+        import re
+        match = re.search(r'\b[\w-]+\.(?:py|html|js|css|json|txt)\b', command, re.IGNORECASE)
+        if match:
+            return match.group(0)
+        return None
+
     def execute(self, command: str) -> str | None:
         """
         Entry point called by the Cipher core engine.
 
         Workflow:
             1. Check trigger phrases.
-            2. Extract error description from command.
-            3. Find most recently modified file in generated_code/.
+            2. Extract target filename via Regex, fallback to most recent file.
+            3. Extract error description from command.
             4. Call swarm.debug_file() with the file and error description.
             5. Return the spoken confirmation message.
 
@@ -140,8 +147,19 @@ class DebuggerSkill:
         if not self._is_triggered(command):
             return None
 
-        # Find the most recent file to debug
-        target_file = self._get_most_recent_file()
+        # Try to extract the specific file from the command
+        extracted_file = self._extract_filename(command)
+        
+        if extracted_file:
+            import os
+            from pathlib import Path
+            target_path = Path.cwd() / self.GENERATED_CODE_DIR / extracted_file
+            if not target_path.exists():
+                return f"File {extracted_file} not found in the {self.GENERATED_CODE_DIR} directory."
+            target_file = str(target_path.relative_to(Path.cwd() / self.GENERATED_CODE_DIR))
+        else:
+            # Fallback to the most recent file to debug
+            target_file = self._get_most_recent_file()
 
         if target_file is None:
             return (

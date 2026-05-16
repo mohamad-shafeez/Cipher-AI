@@ -28,6 +28,7 @@ data/                   # contacts.json, logs.txt
 vault/
 knowledge_base/
 cipher_knowledge/       # Local AI knowledge base
+projects/               # User's external project memory
 
 # ── Temporary Media & Vision (CRITICAL PRIVACY)
 temp_vision/            # DO NOT LEAK WEBCAM / SCREENSHOT CAPTURES

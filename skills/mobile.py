@@ -171,8 +171,10 @@ class MobileSkill:
         return f"Alarm set for {time_str} on your phone."
 
     def hotspot_on(self):
-        self.adb_command("shell svc wifi enable")
-        return "Hotspot toggled. Check your phone settings."
+        # Android blocks silent hotspot toggling via ADB for security.
+        # This intent instantly opens the Tethering/Hotspot settings page instead.
+        self.adb_command("shell am start -a android.settings.TETHER_SETTINGS")
+        return "Opening Hotspot settings on your phone."
 
     def get_battery(self):
         result = self.adb_command("shell dumpsys battery")

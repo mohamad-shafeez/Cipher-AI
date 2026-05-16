@@ -40,7 +40,7 @@ MAX_TOKENS      = 15500          # Hard ceiling — leaves 500 tokens for LLM re
 AVG_CHARS_PER_TOKEN = 4          # Conservative estimate for token counting
 MAX_FIX_ATTEMPTS    = 3          # Max retries before marking as unfixed
 SANDBOX_TIMEOUT     = 30         # Seconds a sandbox test may run
-MODEL_PRIMARY   = "deepseek-coder:6.7b"
+MODEL_PRIMARY   = "qwen2.5-coder:7b"
 MODEL_FALLBACK  = "deepseek-r1:1.5b"
 
 # Extensions Cipher will read for dependency scanning
@@ -439,7 +439,16 @@ class SurgicalExecutor:
         line_num   = error_item.get("line")
 
         if not file_path or not os.path.exists(file_path):
-            return f"File not found: {file_path}"
+            # Global File Repair Path Traversal
+            found = False
+            if os.path.exists("cipher_projects"):
+                for root_dir, dirs, files in os.walk("cipher_projects"):
+                    if os.path.basename(file_path) in files:
+                        file_path = os.path.join(root_dir, os.path.basename(file_path))
+                        found = True
+                        break
+            if not found:
+                return f"File not found: {file_path}"
 
         # ── Check vault first ──────────────────────────────────────────────────
         cached = self.vault.has_seen_error(error_text)
@@ -490,6 +499,10 @@ class SurgicalExecutor:
                 Path(file_path).write_text(patch, encoding="utf-8")
                 # Log to vault
                 log_name = self.vault.log_fixed(file_path, error_text, original_content, patch, diff)
+                
+                # Living Document Protocol: Auto-update README for core changes
+                self._document_change_in_readme(file_path, error_text)
+                
                 self._announce(f"Fix applied. Memory saved to {log_name}.")
                 return f"✅ Fixed: {os.path.basename(file_path)} — logged to vault."
             else:
@@ -499,6 +512,52 @@ class SurgicalExecutor:
         log_name = self.vault.log_unfixed(file_path, error_text, attempts)
         self._announce(f"Could not fix this error after {MAX_FIX_ATTEMPTS} attempts. Logged to unfixed vault.")
         return f"⚠ Unfixed: {os.path.basename(file_path)} — see unfixed_errors/{log_name}"
+
+    def _document_change_in_readme(self, file_path: str, description: str):
+        """
+        THE LIVING DOCUMENT RULE:
+        If a core system file, architecture, or skill is modified, automatically 
+        append a summary of the change to the README.md Changelog.
+        """
+        try:
+            path_str = str(file_path).lower()
+            # Only document if it's a core modification
+            is_core = any(x in path_str for x in ["core\\", "skills\\", "codeskills\\", "main.py"])
+            if not is_core:
+                return
+
+            readme_path = Path("README.md").resolve()
+            if not readme_path.exists():
+                return
+
+            content = readme_path.read_text(encoding="utf-8")
+            if "## 📜 Recent Updates / Changelog" not in content:
+                return
+
+            date_str = datetime.now().strftime("%Y-%m-%d %H:%M")
+            base_name = os.path.basename(file_path)
+            
+            # Clean up the description for the changelog
+            desc_clean = description.replace('\n', ' ').strip()
+            if len(desc_clean) > 100:
+                desc_clean = desc_clean[:97] + "..."
+                
+            entry = f"- **{date_str}** | `{base_name}`: {desc_clean}\n"
+            
+            # Insert after the changelog header
+            idx = content.find("## 📜 Recent Updates / Changelog")
+            if idx != -1:
+                # Find the next newline after the section header and its italic text
+                insert_pos = content.find("*Auto-documented by Cipher OS.*", idx)
+                if insert_pos != -1:
+                    insert_pos += len("*Auto-documented by Cipher OS.*") + 1
+                    
+                    new_content = content[:insert_pos] + "\n" + entry + content[insert_pos:]
+                    readme_path.write_text(new_content, encoding="utf-8")
+                    print(f">> [Living Document] Changelog updated in README.md")
+
+        except Exception as e:
+            print(f">> [Living Document] Failed to update README: {e}")
 
     # ── FIM Prompting (DeepSeek Gem 2) ────────────────────────────────────────
 
@@ -566,6 +625,7 @@ class SurgicalExecutor:
                 model=self.model,
                 messages=[{"role": "user", "content": prompt}],
                 options={"temperature": 0.1, "num_predict": 2048},
+                keep_alive="2m"
             )
             fixed_section = response["message"]["content"].strip()
 

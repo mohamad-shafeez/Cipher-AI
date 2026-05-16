@@ -18,12 +18,18 @@ PLAN_PROMPT = """You are Cipher's internal task orchestrator.
 Break the user's request into a sequential JSON array of executable steps.
 
 Available skills: {skill_list}
+Relevant Memory Context: {memory_context}
 
 STRICT MAPPING RULES:
 1. If the user wants to see the screen or find a visual error, Step 1 MUST be "VisionSkill" with the instruction: "Look at the screen".
 2. If the user wants to fix, build, or write code, Step 2 MUST be "CodingSkill" with the instruction: "Fix the code in [filename]".
 3. NEVER use words like "Search", "Scan", or "Browse" for local screen tasks. This triggers the web search by mistake.
 4. Return ONLY a valid JSON array. No explanation, no markdown.
+5. If the user asks to generate code, write HTML, or fix a script, you MUST use 'CodingSkill' or 'AutonomousCoder'. Do NOT use 'SystemMonitor' or 'Clock' unless the user explicitly asks for the time, date, or battery.
+6. If the command is to fix a file, extract the filename and pass it to the Coding tool.
+7. If the user asks to generate a UI, a web page, a project, or explicitly asks to SAVE code to a folder, you MUST route to the 'Swarm' or 'ProjectGenerator' skill (whichever handles multi-file writing). Do NOT use the basic 'CodingSkill' for file-saving tasks.
+8. If the user asks about a complex, novel, or unfamiliar topic (academic concepts, scientific theories, historical events, technical domains) and the Memory Context is EMPTY or IRRELEVANT, do NOT hallucinate an answer. Instead, route the task to 'DeepResearchSkill' with the instruction: "deep research [topic]". This will scrape the web and store permanent knowledge.
+9. If the user asks to open a desktop application, click a button on screen, play media from a specific app, interact with the desktop GUI, or control the mouse/cursor, route the command to 'GhostHandSkill' with the instruction: "click on [element]" or "open [app name]". Do NOT use WindowSkill for app-opening tasks unless it is a window management command (minimize, maximize, snap).
 
 User request: "{user_input}"
 
@@ -53,6 +59,30 @@ class CipherAgent:
         self.session_mem  = []   
         self.task_log     = []   
         self._verbose     = True
+        self.full_control = False
+        self._async_prewarm()
+
+    def _async_prewarm(self):
+        """Async Pre-warming: load LLM weights into RAM on boot without blocking."""
+        import threading
+        def _warm():
+            try:
+                # Pre-warm planner model
+                requests.post(
+                    OLLAMA_URL,
+                    json={"model": "deepseek-r1:1.5b", "prompt": "hi", "stream": False},
+                    timeout=30
+                )
+                # Pre-warm synthesizer model
+                requests.post(
+                    OLLAMA_URL,
+                    json={"model": "llama3.2:3b", "prompt": "hi", "stream": False},
+                    timeout=30
+                )
+                self._log(">> [Agent] Neural models pre-warmed & cached in RAM.")
+            except Exception as e:
+                pass
+        threading.Thread(target=_warm, daemon=True).start()
 
     def activate_ghost(self):
         """The Royal Summoning Trigger"""
@@ -84,6 +114,10 @@ class CipherAgent:
         input_words = clean_input.split()
         processed_input = " ".join([w for w in input_words if w not in noise_words])
 
+        if "full control" in clean_input:
+            self.full_control = True
+            self._log("[AGENT] Full Control Override Activated.")
+
         # ── 1. HEURISTIC ROUTING ──────────────────────────
         # Forced Planner triggers: "and", "then", "also", or the "fix" command
         is_compound = any(w in raw_input.lower() for w in [" and ", " then ", " also ", " fix "])
@@ -102,20 +136,27 @@ class CipherAgent:
         # ── 2. PLANNER PATH ────────────────────
         if self.speaker:
             self.speaker.speak("Analyzing sequence, please hold...")
+            
+        # Get Long-Term Memory Context
+        past_context = ""
+        for s in self.skills.skills:
+            if s.__class__.__name__ == "VectorMemorySkill":
+                past_context = s.similarity_search(raw_input)
+                break
+        
+        if past_context:
+            self._log(f"[AGENT] Retrieved Memory Context: {past_context[:100]}...")
 
-        plan = self._plan(raw_input)
+        plan = self._plan(raw_input, past_context)
 
-        # ── 3. FALLBACK: Direct Brain Reasoning ───────────────────────
+        # ── 3. FALLBACK: Local Error Handling ───────────────────────
         if not plan or len(plan) <= 1:
-            self._log("[AGENT] Routing to Neural Brain")
-            if self.brain:
-                context_prefix = self._build_context_prefix()
-                reply = self.brain.think(context_prefix + raw_input)
-                self._remember("user",   raw_input)
-                self._remember("cipher", reply)
-                self._record_task(raw_input, [], reply)
-                return reply
-            return "Sir, I'm unable to process that request."
+            self._log("[AGENT] Planner failed or returned empty.")
+            reply = "Local brain is congested. Please repeat."
+            self._remember("user",   raw_input)
+            self._remember("cipher", reply)
+            self._record_task(raw_input, [], reply)
+            return reply
 
         # ── 4. EXECUTION: Multi-Step Sequence with Context Injection ──
         self._log(f"[AGENT] Executing {len(plan)}-step plan...")
@@ -129,12 +170,51 @@ class CipherAgent:
             
             # INJECTION: We append the last result to the current instruction
             # This tells the Coder what the Vision saw!
-            instruction = f"{base_instr}. Context from previous step: {last_result}" if last_result else base_instr
+            prev_skill = step_results[-1]["skill"] if step_results else ""
+            if "Vision" in prev_skill and "error" in last_result.lower():
+                instruction = f"{base_instr}. Bug Report context from VisionSkill: {last_result}"
+            else:
+                instruction = f"{base_instr}. Context from previous step: {last_result}" if last_result else base_instr
 
             self._log(f"  >> Step {step_num} [{skill_hint}]: {instruction[:80]}...")
 
+            # ── PERMISSION GATE ──
+            if not self.full_control:
+                print(f"\n[PERMISSION GATE] Proposed action: {instruction}")
+                print("Type 'yes', 'proceed', or 'allow all' to authorize, or anything else to reject.")
+                print("Say 'Cipher, full control' to bypass this gate permanently.")
+                approval = input(">>> ").strip().lower()
+                
+                if "full control" in approval or "allow all" in approval:
+                    self.full_control = True
+                elif approval not in ["yes", "proceed", "y"]:
+                    self._log("[AGENT] Action rejected at permission gate.")
+                    result = "User rejected action."
+                    step_results.append({
+                        "step": step_num, "skill": skill_hint, "result": result
+                    })
+                    break
+
             # Execute Skill
             result = self.skills.run_skills(instruction)
+            
+            # ── TRIPLE-CHECK LOOP (Execute, Verify, Repair) ──
+            if result and "Successfully created" in result:
+                files_created = []
+                if ":" in result:
+                    files_str = result.split(":", 1)[1].strip()
+                    files_created = [f.strip() for f in files_str.split(",")]
+                
+                for fpath in files_created:
+                    verify_ok, error_msg = self._verify_file(fpath)
+                    if not verify_ok:
+                        self._log(f"[TRIPLE-CHECK] Verification failed for {fpath}. Auto-repairing...")
+                        for s in self.skills.skills:
+                            if s.__class__.__name__ == "CodingSkill":
+                                fix_result = s.fix_my_code(fpath)
+                                self._log(f"[TRIPLE-CHECK] Repair result: {fix_result}")
+                                result += f" (Auto-repaired {fpath})"
+                                break
             
             if not result and self.brain:
                 result = self.brain.think(instruction)
@@ -151,24 +231,37 @@ class CipherAgent:
         self._remember("user", raw_input)
         self._remember("cipher", final_summary)
         self._record_task(raw_input, step_results, final_summary)
+        
+        # Save to Long-Term Memory
+        for s in self.skills.skills:
+            if s.__class__.__name__ == "VectorMemorySkill":
+                s.save_interaction(raw_input, final_summary)
+                break
+                
         return final_summary
 
     # ------------------------------------------------------------------ #
     #  PLANNING & SYNTHESIS                                              #
     # ------------------------------------------------------------------ #
 
-    def _plan(self, user_input: str) -> list | None:
+    def _plan(self, user_input: str, memory_context: str = "") -> list | None:
         """Ask the LLM to decompose the task into steps."""
         prompt = PLAN_PROMPT.format(
             skill_list = ", ".join(self.skill_names),
-            user_input = user_input
+            user_input = user_input,
+            memory_context = memory_context
         )
         try:
-            # 120s timeout for stability
+            # 15s timeout for stability to fast-fail to neural brain
             resp = requests.post(
                 OLLAMA_URL,
-                json={"model": MODEL, "prompt": prompt, "stream": False},
-                timeout=120
+                json={
+                    "model": "deepseek-r1:1.5b", 
+                    "prompt": prompt, 
+                    "stream": False,
+                    "keep_alive": "-1"
+                },
+                timeout=15
             )
             raw = resp.json().get("response", "").strip()
             
@@ -194,8 +287,13 @@ class CipherAgent:
         try:
             resp = requests.post(
                 OLLAMA_URL,
-                json={"model": MODEL, "prompt": prompt, "stream": False},
-                timeout=120
+                json={
+                    "model": "llama3.2:3b", 
+                    "prompt": prompt, 
+                    "stream": False,
+                    "keep_alive": "5m"
+                },
+                timeout=15
             )
             return resp.json().get("response", "Sir, all steps completed.").strip()
         except:
@@ -276,3 +374,25 @@ class CipherAgent:
                     os.remove(f)
                 except Exception as e:
                     self._log(f"[AGENT] Failed to remove {f}: {e}")
+
+    def _verify_file(self, filepath: str) -> tuple[bool, str]:
+        """Hidden Linter / Syntax Checker for Triple-Check Loop."""
+        import subprocess
+        import os
+        ext = os.path.splitext(filepath)[1].lower()
+        if not os.path.exists(filepath):
+            return True, ""
+            
+        try:
+            if ext == '.py':
+                res = subprocess.run(['python', '-m', 'py_compile', filepath], capture_output=True, text=True)
+                if res.returncode != 0:
+                    return False, res.stderr
+            elif ext in ['.js', '.ts']:
+                res = subprocess.run(['node', '--check', filepath], capture_output=True, text=True)
+                if res.returncode != 0:
+                    return False, res.stderr
+        except Exception as e:
+            return False, str(e)
+            
+        return True, ""

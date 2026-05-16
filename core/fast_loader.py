@@ -67,6 +67,11 @@ SKILL_REGISTRY = [
     ("skills.env_manager",         "EnvManagerSkill"),
     ("skills.clipboard_sync",      "ClipboardSyncSkill"),
     ("skills.turbo_brain",         "TurboBrainSkill"),
+
+    # ── Phase 5 Skills ──────────────────────────────────────
+    ("skills.skill_assimilator",   "SkillAssimilatorSkill"),
+    ("skills.deep_research",       "DeepResearchSkill"),
+    ("skills.ghost_hand",          "GhostHandSkill"),
 ]
 
 
