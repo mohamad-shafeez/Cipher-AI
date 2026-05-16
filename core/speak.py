@@ -29,6 +29,7 @@ class Speaker:
         # Initialize pyttsx3 inside the dedicated thread
         engine = pyttsx3.init()
         engine.setProperty('rate', 170)
+        self.busy = False
         while True:
             text = self._queue.get()
             if text is None:
@@ -36,8 +37,10 @@ class Speaker:
             try:
                 # Use lock to prevent concurrent engine access
                 with self._lock:
+                    self.busy = True
                     engine.say(text)
                     engine.runAndWait()
+                    self.busy = False
             except RuntimeError as re:
                 # Silently handle "run loop already started"
                 if "run loop already started" in str(re).lower():

@@ -258,11 +258,16 @@ def api_vault_project(project_name):
 
 # ── GHOST OS CORE ─────────────────────────────────────────────
 def handle_voice_command(user_text):
-    """Callback for background microphone listener — now with streaming TTS."""
+    """Callback for background microphone listener — now with feedback protection."""
     global agent, mouth, brain
     if not agent or not mouth:
         return # Still booting
-        
+
+    # ── FEEDBACK PROTECTION ─────────────────────────────────────
+    # If Cipher is currently speaking, ignore the mic input
+    if hasattr(mouth, 'busy') and mouth.busy:
+        return
+
     # Dismissal Protocol (Voice Command to hide the Ghost)
     if any(w in user_text.lower() for w in ["dismissed", "go to sleep", "close cipher", "goodbye"]):
         mouth.speak("Returning to the shadows, Shafeez. Systems standing by.")
@@ -369,6 +374,8 @@ if __name__ == "__main__":
         print(f">> [Warning] Could not fire greeting: {e}")
 
     # --- START LISTENING AFTER GREETING (Prevents Double-Greeting Hallucination) ---
+    import time
+    time.sleep(0.5) # Let the voice engine spin up
     if ear:
         ear.start_background_listening(handle_voice_command)
 
