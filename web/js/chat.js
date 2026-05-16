@@ -488,7 +488,8 @@ function newSession() {
     <div>
       <div class="sb-session-title">Session ${S.sessionNum}</div>
       <div class="sb-session-meta">Just now · 0 msgs</div>
-    </div>`;
+    </div>
+    <i class="fa fa-trash sb-session-delete" onclick="this.parentElement.remove()" style="margin-left:auto; cursor:pointer; color:#ff3366; font-size:0.8rem;"></i>`;
   list.insertBefore(item, list.firstChild);
 }
 function updateSessionMeta() {

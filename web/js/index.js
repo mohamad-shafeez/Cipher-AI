@@ -10,20 +10,20 @@ const API = 'http://127.0.0.1:5500';
 const cur = document.getElementById('cursor');
 const curR = document.getElementById('cursor-ring');
 document.addEventListener('mousemove', e => {
-  cur.style.left  = e.clientX - 4 + 'px';
-  cur.style.top   = e.clientY - 4 + 'px';
+  cur.style.left = e.clientX - 4 + 'px';
+  cur.style.top = e.clientY - 4 + 'px';
   curR.style.left = e.clientX - 14 + 'px';
-  curR.style.top  = e.clientY - 14 + 'px';
+  curR.style.top = e.clientY - 14 + 'px';
 });
 document.addEventListener('mousedown', () => curR.classList.add('click'));
-document.addEventListener('mouseup',   () => curR.classList.remove('click'));
+document.addEventListener('mouseup', () => curR.classList.remove('click'));
 
 // ── BOOT SEQUENCE ─────────────────────────────────────────────
 const BOOT_LINES = [
-  { text: '[INIT] CIPHER OS v3.0 — 16GB Neural Engine', delay: 0,     cls: '' },
+  { text: '[INIT] CIPHER OS v3.0 — 16GB Neural Engine', delay: 0, cls: '' },
   { text: '[LOAD] fast_loader.py → parallel boot (32 threads)', delay: 350, cls: '' },
-  { text: '[LOAD] core/listen.py → Faster-Whisper Large-v3', delay: 600,  cls: '' },
-  { text: '[LOAD] core/think.py  → deepseek-r1:7b (16GB Uncapped)', delay: 850,  cls: '' }, // Updated for 16GB
+  { text: '[LOAD] core/listen.py → Faster-Whisper Large-v3', delay: 600, cls: '' },
+  { text: '[LOAD] core/think.py  → deepseek-r1:7b (16GB Uncapped)', delay: 850, cls: '' }, // Updated for 16GB
   { text: '[LOAD] core/speak.py  → Edge-TTS Neural Engine', delay: 1050, cls: '' }, // Updated for Voice
   { text: '[LOAD] core/agent.py  → CipherAgent planner ready', delay: 1250, cls: '' },
   { text: '[LOAD] skills/ → 40+ modules loaded in 1.8s', delay: 1500, cls: 'log-ok' },
@@ -35,8 +35,8 @@ const BOOT_LINES = [
 ];
 
 function runBoot() {
-  const logEl  = document.getElementById('boot-log');
-  const barEl  = document.getElementById('boot-bar');
+  const logEl = document.getElementById('boot-log');
+  const barEl = document.getElementById('boot-bar');
   const enterBtn = document.getElementById('boot-enter');
 
   // Animate progress bar
@@ -69,7 +69,7 @@ runBoot();
 const heroCanvas = document.getElementById('hero-canvas');
 const hCtx = heroCanvas.getContext('2d');
 let hPhase = 0;
-const hParticles = Array.from({length: 60}, () => ({
+const hParticles = Array.from({ length: 60 }, () => ({
   x: Math.random() * window.innerWidth,
   y: Math.random() * window.innerHeight,
   vx: (Math.random() - 0.5) * 0.4,
@@ -79,7 +79,7 @@ const hParticles = Array.from({length: 60}, () => ({
 }));
 
 function resizeHeroCanvas() {
-  heroCanvas.width  = heroCanvas.offsetWidth;
+  heroCanvas.width = heroCanvas.offsetWidth;
   heroCanvas.height = heroCanvas.offsetHeight;
 }
 resizeHeroCanvas();
@@ -95,8 +95,8 @@ function drawHeroBg() {
     hCtx.strokeStyle = `rgba(0,212,255,${0.03 + i * 0.015})`;
     hCtx.lineWidth = 1;
     for (let x = 0; x <= w; x += 2) {
-      const y = h/2 + Math.sin(x * 0.008 + hPhase + i * 0.8) * (60 + i * 30)
-                     + Math.sin(x * 0.02 - hPhase * 1.2) * 20;
+      const y = h / 2 + Math.sin(x * 0.008 + hPhase + i * 0.8) * (60 + i * 30)
+        + Math.sin(x * 0.02 - hPhase * 1.2) * 20;
       x === 0 ? hCtx.moveTo(x, y) : hCtx.lineTo(x, y);
     }
     hCtx.stroke();
@@ -150,7 +150,7 @@ async function runSystemCheck() {
   setTimeout(() => updateCheck('memory', 'online', 'SQLite memory.db loaded · SessionContext active'), 1600);
 
   // Add this inside the runSystemCheck() function after the Memory check:
-  
+
   // Voice Engine Check
   setTimeout(() => {
     updateCheck('voice', 'online', 'Edge-TTS en-GB-RyanNeural (Neural) · ACTIVE');
@@ -163,7 +163,7 @@ function updateCheck(id, state, msg) {
   const status = document.getElementById(`status-${id}`);
   if (!led || !status) return;
   led.className = 'syscheck-led';
-  if (state === 'online')  { led.classList.add('led-online');  }
+  if (state === 'online') { led.classList.add('led-online'); }
   if (state === 'offline') { led.classList.add('led-offline'); }
   if (state === 'pending') { led.classList.add('led-pending'); }
   status.textContent = msg;
@@ -179,7 +179,7 @@ function drawGauge(canvasId, value, color1, color2) {
   const w = canvas.width, h = canvas.height;
   const cx = w / 2, cy = h / 2, r = w * 0.38;
   const start = -Math.PI * 0.75;
-  const end   = start + (value / 100) * Math.PI * 1.5;
+  const end = start + (value / 100) * Math.PI * 1.5;
 
   ctx.clearRect(0, 0, w, h);
 
@@ -218,9 +218,9 @@ function drawGauge(canvasId, value, color1, color2) {
 function updateGauges() {
   gCpu = Math.min(95, Math.max(5, gCpu + (Math.random() * 10 - 5)));
   // Keep RAM steady around 30-40% since 16GB is a lot of headroom
-  gRam = Math.min(45, Math.max(25, gRam + (Math.random() * 4 - 2))); 
+  gRam = Math.min(45, Math.max(25, gRam + (Math.random() * 4 - 2)));
   gLlm = Math.min(88, Math.max(5, gLlm + (Math.random() * 15 - 7)));
-  
+
 
 
 
@@ -239,66 +239,126 @@ setTimeout(() => { updateGauges(); setInterval(updateGauges, 2200); }, 600);
 
 // ── SKILLS GRID ───────────────────────────────────────────────
 const SKILLS_DATA = [
-  { name:'AI Brain / TurboBrain', file:'turbo_brain.py', icon:'🧠', cat:'ai',
-    desc:'deepseek-r1 via Ollama. LRU cache + streaming. Handles all open-ended reasoning.', tags:['LLM','Ollama','Streaming'] },
-  { name:'Coding Swarm', file:'codeskills/swarm.py', icon:'🐝', cat:'dev',
-    desc:'Multi-agent code generation. Project mode, multi-file output, parallel workers.', tags:['AI','Multi-agent','Code'] },
-  { name:'Autonomous Debugger', file:'autonomous_debugger.py', icon:'🔍', cat:'dev',
-    desc:'Self-directed bug detection and fix loop. Reads error traces, patches files.', tags:['Debug','Auto','AI'] },
-  { name:'Git Commander', file:'git_commander.py', icon:'🌿', cat:'dev',
-    desc:'Voice-controlled git: commit, push, pull, status, log, branch — all offline.', tags:['Git','Voice','Dev'] },
-  { name:'OS Automator', file:'os_automator.py', icon:'🤖', cat:'system',
-    desc:'Natural language → Python script → execute. 3-layer safety rails included.', tags:['Automation','LLM','Scripts'] },
-  { name:'System Monitor', file:'system_monitor.py', icon:'📊', cat:'system',
-    desc:'CPU, RAM, disk, battery live monitoring. Alerts on threshold breaches.', tags:['psutil','Monitor','Live'] },
-  { name:'Process Manager', file:'process_manager.py', icon:'⚙️', cat:'system',
-    desc:'Kill, list, prioritize system processes by voice command.', tags:['Processes','Kill','System'] },
-  { name:'Security Guardian', file:'security_guardian.py', icon:'🛡️', cat:'system',
-    desc:'Port scanning, process auditing, firewall status, threat detection.', tags:['Security','Ports','Scan'] },
-  { name:'Network Pro', file:'network_pro.py', icon:'🌐', cat:'system',
-    desc:'Network diagnostics, speed tests, IP info, connectivity checks.', tags:['Network','WiFi','IP'] },
-  { name:'Data Forge', file:'data_forge.py', icon:'📈', cat:'creative',
-    desc:'matplotlib visualizations from voice. System metrics dual-panel + custom charts.', tags:['matplotlib','Charts','PNG'] },
-  { name:'PPTX Forge', file:'pptx_forge.py', icon:'📑', cat:'creative',
-    desc:'Voice → full PowerPoint presentation via python-pptx. Dark cyberpunk theme.', tags:['pptx','Slides','LLM'] },
-  { name:'Image Forge', file:'image_forge.py', icon:'🎨', cat:'creative',
-    desc:'AI image generation via Bing Image Creator. Free, no paid API needed.', tags:['Image','Bing','AI Art'] },
-  { name:'Vision Protocol', file:'vision_protocol.py', icon:'👁️', cat:'ai',
-    desc:'Screen/webcam capture + moondream vision model for image description.', tags:['Vision','LLaVA','Camera'] },
-  { name:'Voice Neural', file:'voice_neural.py', icon:'🎙️', cat:'ai',
-    desc:'Microsoft Edge Neural TTS (en-GB-RyanNeural). Studio-quality offline speech.', tags:['TTS','Edge','Neural'] },
-  { name:'Web Scout', file:'web_scout.py', icon:'🕵️', cat:'research',
-    desc:'Deep web scraping. Fetches, parses, summarizes multiple pages via TurboBrain.', tags:['Scrape','Search','LLM'] },
-  { name:'Research V2', file:'research_v2.py', icon:'🔬', cat:'research',
-    desc:'DuckDuckGo search + BeautifulSoup scrape + LLM synthesis pipeline.', tags:['DDG','Research','AI'] },
-  { name:'Market Analyst', file:'market_analyst.py', icon:'💹', cat:'research',
-    desc:'Financial data queries, stock lookups, market trend summaries.', tags:['Finance','Market','Data'] },
-  { name:'Knowledge Forge', file:'knowledge_forge.py', icon:'📚', cat:'research',
-    desc:'Builds and queries a persistent local knowledge base from conversations.', tags:['Knowledge','Memory','Local'] },
-  { name:'Mobile Bridge (ADB)', file:'mobile.py', icon:'📱', cat:'mobile',
-    desc:'Full Android control: open apps, calls, SMS, camera, alarms, navigation.', tags:['ADB','Android','Control'] },
-  { name:'WhatsApp Pro', file:'whatsapp_pro.py', icon:'💬', cat:'mobile',
-    desc:'ADB-based WhatsApp messaging. No Selenium, no browser, direct intent.', tags:['WhatsApp','ADB','Offline'] },
-  { name:'Mobile Hotspot', file:'mobile_hotspot.py', icon:'📡', cat:'mobile',
-    desc:'Wireless ADB bridge over Wi-Fi. No USB cable needed after initial pair.', tags:['ADB','WiFi','Wireless'] },
-  { name:'Clipboard Sync', file:'clipboard_sync.py', icon:'📋', cat:'system',
-    desc:'Read, write, clear, sync clipboard across devices.', tags:['Clipboard','Sync','System'] },
-  { name:'Env Manager', file:'env_manager.py', icon:'🔧', cat:'dev',
-    desc:'Read, set, delete environment variables by voice.', tags:['ENV','Config','System'] },
-  { name:'File Vault', file:'file_vault.py', icon:'🔐', cat:'system',
-    desc:'Encrypted local file storage. Secure read/write with access control.', tags:['Vault','Encrypted','Files'] },
-  { name:'Document Intel', file:'document_intel.py', icon:'📄', cat:'research',
-    desc:'Read and summarize documents (PDF, DOCX, TXT) by voice command.', tags:['PDF','Docs','Summarize'] },
-  { name:'Study Vault', file:'study_vault.py', icon:'🎓', cat:'research',
-    desc:'Personal notes, flashcard system, spaced repetition queries.', tags:['Notes','Study','Memory'] },
-  { name:'Scheduler', file:'scheduler.py', icon:'📅', cat:'system',
-    desc:'Task scheduling: reminders, cron-style jobs, future commands.', tags:['Schedule','Cron','Tasks'] },
-  { name:'Email Pro', file:'email_pro.py', icon:'✉️', cat:'mobile',
-    desc:'Gmail compose and send via voice. Contact management integrated.', tags:['Gmail','Email','Voice'] },
-  { name:'Apps Launcher', file:'apps.py', icon:'🚀', cat:'system',
-    desc:'Launch VS Code, Chrome, Spotify, Terminal and 20+ apps by voice.', tags:['Launcher','Apps','Voice'] },
-  { name:'Vector Memory', file:'vector_memory.py', icon:'🧬', cat:'ai',
-    desc:'Semantic search over conversation history. Persistent cross-session recall.', tags:['Vector','Memory','Search'] },
+  {
+    name: 'AI Brain / TurboBrain', file: 'turbo_brain.py', icon: '🧠', cat: 'ai',
+    desc: 'deepseek-r1 via Ollama. LRU cache + streaming. Handles all open-ended reasoning.', tags: ['LLM', 'Ollama', 'Streaming']
+  },
+  {
+    name: 'Coding Swarm', file: 'codeskills/swarm.py', icon: '🐝', cat: 'dev',
+    desc: 'Multi-agent code generation. Project mode, multi-file output, parallel workers.', tags: ['AI', 'Multi-agent', 'Code']
+  },
+  {
+    name: 'Autonomous Debugger', file: 'autonomous_debugger.py', icon: '🔍', cat: 'dev',
+    desc: 'Self-directed bug detection and fix loop. Reads error traces, patches files.', tags: ['Debug', 'Auto', 'AI']
+  },
+  {
+    name: 'Git Commander', file: 'git_commander.py', icon: '🌿', cat: 'dev',
+    desc: 'Voice-controlled git: commit, push, pull, status, log, branch — all offline.', tags: ['Git', 'Voice', 'Dev']
+  },
+  {
+    name: 'OS Automator', file: 'os_automator.py', icon: '🤖', cat: 'system',
+    desc: 'Natural language → Python script → execute. 3-layer safety rails included.', tags: ['Automation', 'LLM', 'Scripts']
+  },
+  {
+    name: 'System Monitor', file: 'system_monitor.py', icon: '📊', cat: 'system',
+    desc: 'CPU, RAM, disk, battery live monitoring. Alerts on threshold breaches.', tags: ['psutil', 'Monitor', 'Live']
+  },
+  {
+    name: 'Process Manager', file: 'process_manager.py', icon: '⚙️', cat: 'system',
+    desc: 'Kill, list, prioritize system processes by voice command.', tags: ['Processes', 'Kill', 'System']
+  },
+  {
+    name: 'Security Guardian', file: 'security_guardian.py', icon: '🛡️', cat: 'system',
+    desc: 'Port scanning, process auditing, firewall status, threat detection.', tags: ['Security', 'Ports', 'Scan']
+  },
+  {
+    name: 'Network Pro', file: 'network_pro.py', icon: '🌐', cat: 'system',
+    desc: 'Network diagnostics, speed tests, IP info, connectivity checks.', tags: ['Network', 'WiFi', 'IP']
+  },
+  {
+    name: 'Data Forge', file: 'data_forge.py', icon: '📈', cat: 'creative',
+    desc: 'matplotlib visualizations from voice. System metrics dual-panel + custom charts.', tags: ['matplotlib', 'Charts', 'PNG']
+  },
+  {
+    name: 'PPTX Forge', file: 'pptx_forge.py', icon: '📑', cat: 'creative',
+    desc: 'Voice → full PowerPoint presentation via python-pptx. Dark cyberpunk theme.', tags: ['pptx', 'Slides', 'LLM']
+  },
+  {
+    name: 'Image Forge', file: 'image_forge.py', icon: '🎨', cat: 'creative',
+    desc: 'AI image generation via Bing Image Creator. Free, no paid API needed.', tags: ['Image', 'Bing', 'AI Art']
+  },
+  {
+    name: 'Vision Protocol', file: 'vision_protocol.py', icon: '👁️', cat: 'ai',
+    desc: 'Screen/webcam capture + moondream vision model for image description.', tags: ['Vision', 'LLaVA', 'Camera']
+  },
+  {
+    name: 'Voice Neural', file: 'voice_neural.py', icon: '🎙️', cat: 'ai',
+    desc: 'Microsoft Edge Neural TTS (en-GB-RyanNeural). Studio-quality offline speech.', tags: ['TTS', 'Edge', 'Neural']
+  },
+  {
+    name: 'Web Scout', file: 'web_scout.py', icon: '🕵️', cat: 'research',
+    desc: 'Deep web scraping. Fetches, parses, summarizes multiple pages via TurboBrain.', tags: ['Scrape', 'Search', 'LLM']
+  },
+  {
+    name: 'Research V2', file: 'research_v2.py', icon: '🔬', cat: 'research',
+    desc: 'DuckDuckGo search + BeautifulSoup scrape + LLM synthesis pipeline.', tags: ['DDG', 'Research', 'AI']
+  },
+  {
+    name: 'Market Analyst', file: 'market_analyst.py', icon: '💹', cat: 'research',
+    desc: 'Financial data queries, stock lookups, market trend summaries.', tags: ['Finance', 'Market', 'Data']
+  },
+  {
+    name: 'Knowledge Forge', file: 'knowledge_forge.py', icon: '📚', cat: 'research',
+    desc: 'Builds and queries a persistent local knowledge base from conversations.', tags: ['Knowledge', 'Memory', 'Local']
+  },
+  {
+    name: 'Mobile Bridge (ADB)', file: 'mobile.py', icon: '📱', cat: 'mobile',
+    desc: 'Full Android control: open apps, calls, SMS, camera, alarms, navigation.', tags: ['ADB', 'Android', 'Control']
+  },
+  {
+    name: 'WhatsApp Pro', file: 'whatsapp_pro.py', icon: '💬', cat: 'mobile',
+    desc: 'ADB-based WhatsApp messaging. No Selenium, no browser, direct intent.', tags: ['WhatsApp', 'ADB', 'Offline']
+  },
+  {
+    name: 'Mobile Hotspot', file: 'mobile_hotspot.py', icon: '📡', cat: 'mobile',
+    desc: 'Wireless ADB bridge over Wi-Fi. No USB cable needed after initial pair.', tags: ['ADB', 'WiFi', 'Wireless']
+  },
+  {
+    name: 'Clipboard Sync', file: 'clipboard_sync.py', icon: '📋', cat: 'system',
+    desc: 'Read, write, clear, sync clipboard across devices.', tags: ['Clipboard', 'Sync', 'System']
+  },
+  {
+    name: 'Env Manager', file: 'env_manager.py', icon: '🔧', cat: 'dev',
+    desc: 'Read, set, delete environment variables by voice.', tags: ['ENV', 'Config', 'System']
+  },
+  {
+    name: 'File Vault', file: 'file_vault.py', icon: '🔐', cat: 'system',
+    desc: 'Encrypted local file storage. Secure read/write with access control.', tags: ['Vault', 'Encrypted', 'Files']
+  },
+  {
+    name: 'Document Intel', file: 'document_intel.py', icon: '📄', cat: 'research',
+    desc: 'Read and summarize documents (PDF, DOCX, TXT) by voice command.', tags: ['PDF', 'Docs', 'Summarize']
+  },
+  {
+    name: 'Study Vault', file: 'study_vault.py', icon: '🎓', cat: 'research',
+    desc: 'Personal notes, flashcard system, spaced repetition queries.', tags: ['Notes', 'Study', 'Memory']
+  },
+  {
+    name: 'Scheduler', file: 'scheduler.py', icon: '📅', cat: 'system',
+    desc: 'Task scheduling: reminders, cron-style jobs, future commands.', tags: ['Schedule', 'Cron', 'Tasks']
+  },
+  {
+    name: 'Email Pro', file: 'email_pro.py', icon: '✉️', cat: 'mobile',
+    desc: 'Gmail compose and send via voice. Contact management integrated.', tags: ['Gmail', 'Email', 'Voice']
+  },
+  {
+    name: 'Apps Launcher', file: 'apps.py', icon: '🚀', cat: 'system',
+    desc: 'Launch VS Code, Chrome, Spotify, Terminal and 20+ apps by voice.', tags: ['Launcher', 'Apps', 'Voice']
+  },
+  {
+    name: 'Vector Memory', file: 'vector_memory.py', icon: '🧬', cat: 'ai',
+    desc: 'Semantic search over conversation history. Persistent cross-session recall.', tags: ['Vector', 'Memory', 'Search']
+  },
 ];
 
 function buildSkillsGrid(filter = 'all') {

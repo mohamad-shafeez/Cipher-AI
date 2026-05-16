@@ -93,6 +93,7 @@
           <div class="sb-session-title">Session 1</div>
           <div class="sb-session-meta sb-session-meta">Just now · 0 msgs</div>
         </div>
+        <i class="fa fa-trash sb-session-delete" onclick="this.parentElement.remove()" style="margin-left:auto; cursor:pointer; color:#ff3366; font-size:0.8rem;"></i>
       </div>
     </div>
 
@@ -311,15 +312,14 @@
           <button class="dock-chip" style="width:100%;justify-content:flex-start;" onclick="sendDirect('git status')">
             <i class="fa fa-code-branch"></i> Git Status
           </button>
+          <button class="dock-chip" style="width:100%;justify-content:flex-start;" onclick="openPlagPanel()">
+            <i class="fa fa-shield-halved"></i> Plagiarism Check
+          </button>
         </div>
       </div>
 
     </div>
   </div>
-<!-- Plagiarism Checker Panel — add to dock-chips in chat.html -->
-<div class="dock-chip" onclick="openPlagPanel()">
-  <i class="fa fa-shield-halved"></i> Plagiarism Check
-</div>
  
 <!-- Plagiarism Modal — add before closing </div> of shell -->
 <div id="plag-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);

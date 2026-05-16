@@ -155,6 +155,7 @@ body::before {
 .sb-sessions {
   flex: 1;
   overflow-y: auto;
+  max-height: 40vh;
   padding: 0 6px;
   scrollbar-width: thin;
   scrollbar-color: var(--border) transparent;
