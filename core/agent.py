@@ -125,7 +125,26 @@ class CipherAgent:
             self.full_control = True
             self._log("[AGENT] Full Control Override Activated.")
 
-        # ── 1. HEURISTIC ROUTING ──────────────────────────
+        # ── 1. HARD HEURISTIC BYPASS (FAST-PATH) ───────────────
+        # Force-routing for common coding/debug tasks to avoid planner hallucinations
+        coding_keywords = ['fix', 'debug', 'error', 'refactor']
+        coding_extensions = ['.py', '.js', '.html', '.css', '.cpp', '.java', 'code']
+        
+        is_coding_task = any(kw in clean_input for kw in coding_keywords)
+        has_file_context = any(ext in clean_input for ext in coding_extensions)
+        
+        if is_coding_task and has_file_context:
+            self._log("[AGENT] Hard Override: Bypassing planner, routing directly to Coding/Debugger Skill.")
+            # Run skills directly with raw input to ensure full path/instruction context
+            result = self.skills.run_skills(raw_input)
+            if result:
+                self._remember("user", raw_input)
+                self._remember("cipher", result)
+                self._log(f"[AGENT] Hard-path match: {time.time()-start:.2f}s")
+                self._record_task(raw_input, [{"step": 1, "skill": "HardOverride(Coding)", "result": result}], result)
+                return result
+
+        # ── 2. HEURISTIC ROUTING ──────────────────────────
         # Forced Planner triggers: "and", "then", "also", or the "fix" command
         is_compound = any(w in raw_input.lower() for w in [" and ", " then ", " also ", " fix "])
         
@@ -140,7 +159,7 @@ class CipherAgent:
                 self._record_task(raw_input, [{"step":1,"result":quick}], quick)
                 return quick
 
-        # ── 2. PLANNER PATH ────────────────────
+        # ── 3. PLANNER PATH ────────────────────
         if self.speaker:
             self.speaker.speak("Analyzing sequence, please hold...")
             
@@ -156,7 +175,7 @@ class CipherAgent:
 
         plan = self._plan(raw_input, past_context)
 
-        # ── 3. FALLBACK: Local Error Handling ───────────────────────
+        # ── 4. FALLBACK: Local Error Handling ───────────────────────
         if not plan or len(plan) <= 1:
             self._log("[AGENT] Planner failed or returned empty.")
             reply = "Local brain is congested. Please repeat."
