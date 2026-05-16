@@ -137,16 +137,22 @@ class CipherAgent:
             self._log("[AGENT] Hard Override: Bypassing planner, routing directly to Coding/Debugger Skill.")
             # Run skills directly with raw input to ensure full path/instruction context
             result = self.skills.run_skills(raw_input)
-            if result:
-                self._remember("user", raw_input)
-                self._remember("cipher", result)
-                self._log(f"[AGENT] Hard-path match: {time.time()-start:.2f}s")
-                self._record_task(raw_input, [{"step": 1, "skill": "HardOverride(Coding)", "result": result}], result)
-                return result
             
-            # If we match the heuristic but skills fail, we MUST still exit to avoid planner hallucinations
-            self._log("[AGENT] Hard Override matched but skills returned empty. Forcing exit.")
-            return "Sir, I recognized the coding task but the internal repair module failed to return a result. Please check the file path."
+            # Synthesize the result into a professional summary
+            final_summary = self._synthesize(raw_input, [{"step": 1, "skill": "CodingSkill", "result": result}])
+            
+            self._remember("user", raw_input)
+            self._remember("cipher", final_summary)
+            self._record_task(raw_input, [{"step": 1, "skill": "HardOverride(Coding)", "result": result}], final_summary)
+            
+            # Save to Long-Term Memory
+            for s in self.skills.skills:
+                if s.__class__.__name__ == "VectorMemorySkill":
+                    s.save_interaction(raw_input, final_summary)
+                    break
+
+            # THE MAGIC WORD THAT STOPS THE LEAK:
+            return final_summary
 
         # ── 2. HEURISTIC ROUTING ──────────────────────────
         # Forced Planner triggers: "and", "then", "also", or the "fix" command
