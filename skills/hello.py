@@ -239,7 +239,12 @@ class HelloSkill:
             # --- ⚡ CIPHER EXCLUSIVES ⚡ ---
             f"Digital Fortress secure. {self.config.ASSISTANT_NAME} is online.",
             "Protocols initialized. What is our objective today, sir?",
-            "Core systems at optimal performance. Awaiting your command."
+            "Core systems at optimal performance. Awaiting your command.",
+            "System online. Neural pathways connected. How may I assist you?",
+            f"{self.config.ASSISTANT_NAME} OS initialized. All skill modules active and ready.",
+            "Boot sequence complete. Awaiting your command.",
+            "Ghost engine online. Memory and logic circuits nominal.",
+            "Welcome back. I am fully loaded and ready to work."
         ]
         
         # Pick a random greeting
