@@ -30,6 +30,10 @@ STRICT MAPPING RULES:
 7. If the user asks to generate a UI, a web page, a project, or explicitly asks to SAVE code to a folder, you MUST route to the 'Swarm' or 'ProjectGenerator' skill (whichever handles multi-file writing). Do NOT use the basic 'CodingSkill' for file-saving tasks.
 8. If the user asks about a complex, novel, or unfamiliar topic (academic concepts, scientific theories, historical events, technical domains) and the Memory Context is EMPTY or IRRELEVANT, do NOT hallucinate an answer. Instead, route the task to 'DeepResearchSkill' with the instruction: "deep research [topic]". This will scrape the web and store permanent knowledge.
 9. If the user asks to open a desktop application, click a button on screen, play media from a specific app, interact with the desktop GUI, or control the mouse/cursor, route the command to 'GhostHandSkill' with the instruction: "click on [element]" or "open [app name]". Do NOT use WindowSkill for app-opening tasks unless it is a window management command (minimize, maximize, snap).
+10. CRITICAL: If the user asks to 'fix code', 'debug', or 'edit a file', you MUST route it directly to 'CodingSkill' or 'AutonomousDebugger' ONLY.
+11. CRITICAL: Do NOT use 'VisionSkill', 'WebScout', or 'BrowserSkill' for local file editing or coding tasks.
+12. CRITICAL: Do NOT use 'FileVaultSkill' unless the user explicitly mentions 'encryption' or 'passwords'.
+13. If the user mentions a folder and a file (e.g., 'generated code folder test.py'), extract the path and pass it entirely to 'CodingSkill'.
 
 User request: "{user_input}"
 

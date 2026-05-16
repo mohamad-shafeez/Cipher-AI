@@ -47,10 +47,9 @@ def boot():
 
     global ear, brain, mouth, skills, agent, context
 
-    # 1. Start Ear and spawn daemon listener IMMEDIATELY
+    # 1. Start Ear (Passive)
     print(">> Initializing Neural Organs...")
     ear     = Listener()
-    ear.start_background_listening(handle_voice_command)
 
     # 2. Skills load in parallel (fastest step)
     skills  = FastSkillLoader(max_workers=14)
@@ -367,6 +366,9 @@ if __name__ == "__main__":
     except Exception as e:
         print(f">> [Warning] Could not fire greeting: {e}")
 
+    # --- START LISTENING AFTER GREETING (Prevents Double-Greeting Hallucination) ---
+    if ear:
+        ear.start_background_listening(handle_voice_command)
 
     try:
         ghost_listener()
