@@ -51,7 +51,7 @@ prompt.addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
 });
 
-// --- UPDATED SEND MESSAGE (FOR NEURAL VOICE) ---
+// --- UPDATED SEND MESSAGE (FOR NEURAL VOICE & STREAMING) ---
 async function sendMessage() {
   const text = prompt.value.trim();
   if (!text || S.loading) return;
@@ -71,20 +71,78 @@ async function sendMessage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
         command: text, 
-        voice: S.voiceEnabled // Tells backend to trigger voice_neural.py
+        voice: S.voiceEnabled 
       }),
-      signal: AbortSignal.timeout(45000),
+      signal: AbortSignal.timeout(60000),
     });
-    
-    const data = await res.json();
+
     removeThinking(thinkId);
-    appendAI(data.response || '(No response)', data.code || null, text);
+    
+    // We append an empty AI bubble first
+    S.msgCount++;
+    const now = fmtTime();
+    const g = document.createElement('div');
+    g.className = 'msg-group';
+    g.innerHTML = `
+      <div class="msg-label ai"><i class="fa fa-microchip"></i> CIPHER · ${now}</div>
+      <div class="msg-row">
+        <div class="msg-avatar ai"><i class="fa fa-robot"></i></div>
+        <div class="msg-bubble ai" id="stream-bubble-${S.msgCount}"></div>
+        <div class="msg-actions">
+          <button class="msg-action" onclick="copyBubble(this)" title="Copy"><i class="fa fa-copy"></i></button>
+          <button class="msg-action" onclick="speakBubble(this)" title="Speak"><i class="fa fa-volume-high"></i></button>
+        </div>
+      </div>
+    `;
+    msgWrap.appendChild(g);
+    scrollBottom();
+    const bubble = document.getElementById(`stream-bubble-${S.msgCount}`);
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let fullResponse = "";
+    let finalCode = null;
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, {stream: true});
+      const lines = buffer.split('\\n');
+      buffer = lines.pop(); 
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          const parsed = JSON.parse(line);
+          if (parsed.response !== undefined) {
+             fullResponse = parsed.response;
+             finalCode = parsed.code;
+          } else if (parsed.chunk !== undefined) {
+             fullResponse += parsed.chunk;
+          }
+        } catch (e) {}
+      }
+      bubble.innerHTML = formatText(fullResponse);
+      scrollBottom();
+    }
+    
+    if (buffer.trim()) {
+      try {
+          const parsed = JSON.parse(buffer);
+          if (parsed.response !== undefined) {
+             fullResponse = parsed.response;
+             finalCode = parsed.code;
+          } else if (parsed.chunk !== undefined) {
+             fullResponse += parsed.chunk;
+          }
+      } catch (e) {}
+    }
+
+    g.remove(); // Remove streaming bubble, replace with robust appendAI
+    S.msgCount--; 
+    appendAI(fullResponse || '(No response)', finalCode || null, text);
     setStatus('ONLINE', 'green');
 
-    // NOTE: Your backend (communication.py) should already be calling 
-    // voice_neural.py directly. If it is, the sound will come out 
-    // of your speakers automatically. We don't need JS speech!
-    
   } catch (err) {
     removeThinking(thinkId);
     appendAI('⚠ Connection failed.', null, text, true);
@@ -932,6 +990,101 @@ function escH(str) {
   return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')
     .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
+
+// ── VAULT EXPLORER LOGIC ──────────────────────────────────────
+async function openVault() {
+  document.getElementById('vault-modal').style.display = 'flex';
+  const listEl = document.getElementById('vault-list');
+  listEl.innerHTML = `<div style="color:#00d4ff;text-align:center;margin-top:20px;">Fetching...</div>`;
+  
+  try {
+    const res = await fetch(`${API}/api/vault`);
+    const data = await res.json();
+    
+    if (data.projects && data.projects.length > 0) {
+      listEl.innerHTML = data.projects.map(p => `
+        <div onclick="viewLedger('${p.name}')" style="padding:10px;margin-bottom:5px;background:rgba(0,212,255,0.05);border:1px solid rgba(0,212,255,0.1);border-radius:4px;cursor:pointer;color:#00d4ff;font-family:var(--font-mono);font-size:0.75rem;">
+          <i class="fa fa-book"></i> ${p.name.toUpperCase()}
+        </div>
+      `).join('');
+    } else {
+      listEl.innerHTML = `<div style="color:#4a6a80;text-align:center;margin-top:20px;">Vault Empty</div>`;
+    }
+  } catch (e) {
+    listEl.innerHTML = `<div style="color:#ff3366;text-align:center;margin-top:20px;">Connection Error</div>`;
+  }
+}
+
+function closeVault() {
+  document.getElementById('vault-modal').style.display = 'none';
+}
+
+async function viewLedger(projectName) {
+  const viewer = document.getElementById('vault-viewer');
+  viewer.innerHTML = `<div style="color:#ffaa00;">Loading ledger...</div>`;
+  try {
+    const res = await fetch(`${API}/api/vault/${projectName}`);
+    const data = await res.json();
+    // Use formatText to render the markdown nicely!
+    viewer.innerHTML = formatText(data.content); 
+  } catch (e) {
+    viewer.innerHTML = `<div style="color:#ff3366;">Error loading ledger.</div>`;
+  }
+}
+
+async function handleFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  input.value = '';
+  
+  if (!file.name.endsWith('.py')) {
+    toast('Only .py files are supported for Assimilation.', 'error');
+    return;
+  }
+  
+  toast(`Assimilating ${file.name}...`, 'info');
+  const formData = new FormData();
+  formData.append('file', file);
+  
+  try {
+    const res = await fetch(`${API}/api/upload`, {
+      method: 'POST',
+      body: formData
+    });
+    const data = await res.json();
+    if (res.ok) {
+      toast(`Successfully assimilated ${file.name}`, 'success');
+      appendAI(`I have ingested \`${file.name}\`. It is now available in the system.`, null, '');
+    } else {
+      toast(`Upload failed: ${data.error}`, 'error');
+    }
+  } catch (e) {
+    toast(`Upload error: ${e.message}`, 'error');
+  }
+}
+
+setInterval(async () => {
+  try {
+    const res = await fetch(`${API}/api/telemetry`);
+    if (res.ok) {
+      const data = await res.json();
+      const cpu = document.getElementById('p-cpu');
+      const ram = document.getElementById('p-ram');
+      const cBar = document.getElementById('p-cpu-bar');
+      const rBar = document.getElementById('p-ram-bar');
+      if (cpu) cpu.innerText = data.cpu.toFixed(1) + '%';
+      if (ram) ram.innerText = data.ram.toFixed(1) + '%';
+      if (cBar) cBar.style.width = data.cpu + '%';
+      if (rBar) rBar.style.width = data.ram + '%';
+      
+      const statusText = document.getElementById('status-text');
+      if (statusText) statusText.innerText = 'ONLINE';
+    }
+  } catch (e) {
+      const statusText = document.getElementById('status-text');
+      if (statusText) statusText.innerText = 'OFFLINE';
+  }
+}, 2500);
 
 // ── INIT ───────────────────────────────────────────────────────
 setTimeout(checkBackend, 800);

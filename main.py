@@ -139,13 +139,39 @@ def serve_frontend(filename):
 def api_command():
     data      = request.json or {}
     user_text = data.get('command', '').strip()
+    voice     = data.get('voice', False)
     print(f"\n[WEB] {user_text[:80]}")
     if not user_text:
         return jsonify({"response": "No command received."})
-    result = process_command(user_text)
-    if isinstance(result, dict):
-        return jsonify({"response": result.get("message",""), "code": result.get("code","")})
-    return jsonify({"response": result})
+        
+    def generate():
+        import json
+        import time
+        import threading
+        
+        result = process_command(user_text)
+        
+        if voice and mouth:
+            text_to_speak = result.get("message", "") if isinstance(result, dict) else result
+            if text_to_speak:
+                def speak_task():
+                    if len(text_to_speak) > 120 and brain:
+                        _stream_speak(text_to_speak, mouth)
+                    else:
+                        mouth.speak(text_to_speak)
+                threading.Thread(target=speak_task).start()
+
+        if isinstance(result, dict):
+            yield json.dumps({"response": result.get("message",""), "code": result.get("code","")}) + "\n"
+            return
+            
+        words = result.split(" ")
+        for i, word in enumerate(words):
+            chunk = word + (" " if i < len(words)-1 else "")
+            yield json.dumps({"chunk": chunk}) + "\n"
+            time.sleep(0.015)
+
+    return Response(generate(), mimetype='application/x-ndjson')
 
 @app.route('/api/agent/log', methods=['GET'])
 def api_agent_log():
@@ -166,8 +192,64 @@ def api_skills():
 def run_flask():
     import logging
     logging.getLogger('werkzeug').setLevel(logging.ERROR)
+    from flask_cors import CORS
+    CORS(app)
     # Allows connections from your phone/external devices
     app.run(host="0.0.0.0", port=5500, debug=False, use_reloader=False)
+
+# ── TELEMETRY & VAULT ROUTES ──────────────────────────────────
+import psutil
+from werkzeug.utils import secure_filename
+
+@app.route('/api/telemetry', methods=['GET'])
+def api_telemetry():
+    cpu = psutil.cpu_percent(interval=0)
+    ram = psutil.virtual_memory().percent
+    disk = psutil.disk_usage('/').percent
+    return jsonify({"cpu": cpu, "ram": ram, "disk": disk})
+
+@app.route('/api/upload', methods=['POST'])
+def api_upload():
+    if 'file' not in request.files:
+        return jsonify({"error": "No file part"}), 400
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({"error": "No selected file"}), 400
+    if file and file.filename.endswith('.py'):
+        target_dir = os.path.join(os.getcwd(), 'learn_skill')
+        os.makedirs(target_dir, exist_ok=True)
+        filename = secure_filename(file.filename)
+        file.save(os.path.join(target_dir, filename))
+        return jsonify({"status": "success", "message": f"File {filename} assimilated."})
+    return jsonify({"error": "Only .py files are supported for assimilation."}), 400
+
+@app.route('/api/vault', methods=['GET'])
+def api_vault():
+    projects = []
+    projects_dir = os.path.join(os.getcwd(), 'projects')
+    if os.path.exists(projects_dir):
+        for root, dirs, files in os.walk(projects_dir):
+            for file in files:
+                if file.endswith('.md'):
+                    rel_path = os.path.relpath(os.path.join(root, file), projects_dir)
+                    name = rel_path.replace('.md', '').replace('\\', '/')
+                    projects.append({"name": name})
+    return jsonify({"projects": projects})
+
+@app.route('/api/vault/<path:project_name>', methods=['GET'])
+def api_vault_project(project_name):
+    projects_dir = os.path.join(os.getcwd(), 'projects')
+    if '..' in project_name:
+        return jsonify({"error": "Invalid path"}), 400
+    path = os.path.join(projects_dir, project_name + '.md')
+    if os.path.exists(path):
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            return jsonify({"content": content})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+    return jsonify({"error": "Not found"}), 404
 
 
 # ── GHOST OS CORE ─────────────────────────────────────────────

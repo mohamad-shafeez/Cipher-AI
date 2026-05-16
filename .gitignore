@@ -96,3 +96,13 @@ config.py
 skills/notes.db
 *.db
 structured.txt
+
+# ── Final Sanitization Rules ────────────────
+.jetro/
+.cursor/
+*.mp3
+*.ico
+*.vbs
+*clearance.md
+structured.txt
+notes.db

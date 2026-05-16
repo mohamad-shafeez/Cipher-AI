@@ -207,8 +207,11 @@
         <div class="dock-chips" id="dock-chips">
           <div class="dock-chip" onclick="insertCmd('build ')"><i class="fa fa-code"></i> Code Swarm</div>
           <div class="dock-chip" onclick="openPlagPanel()">
-  <i class="fa fa-shield-halved"></i> Plagiarism Check
-</div>
+            <i class="fa fa-shield-halved"></i> Plagiarism Check
+          </div>
+          <div class="dock-chip" onclick="openVault()">
+            <i class="fa fa-folder-tree"></i> Vault Explorer
+          </div>
           <div class="dock-chip" onclick="insertCmd('fix ')"><i class="fa fa-bug"></i> Auto-Debug</div>
           <div class="dock-chip" onclick="insertCmd('create presentation about ')"><i class="fa fa-file-powerpoint"></i> PPTX Forge</div>
           <div class="dock-chip" onclick="insertCmd('generate image of ')"><i class="fa fa-image"></i> Image Forge</div>
@@ -416,6 +419,28 @@
  
       <!-- Results panel -->
       <div id="plag-results" style="display:none;margin-top:16px;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Vault Explorer Modal -->
+<div id="vault-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:800;backdrop-filter:blur(6px);align-items:center;justify-content:center;">
+  <div style="background:#0c1d2e;border:1px solid rgba(0,212,255,0.35);border-radius:10px;width:min(800px,95vw);height:80vh;display:flex;flex-direction:column;padding:0;">
+    
+    <div style="padding:16px 20px;border-bottom:1px solid rgba(0,212,255,0.15);display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <div style="font-family:'Orbitron',monospace;font-size:0.9rem;color:#00d4ff;letter-spacing:3px;font-weight:700;">📂 VAULT EXPLORER</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:0.6rem;color:#4a6a80;margin-top:3px;">PROJECT MEMORY & ARCHITECTURE LEDGERS</div>
+      </div>
+      <button onclick="closeVault()" style="background:transparent;border:1px solid rgba(255,51,102,0.3);color:#ff3366;width:30px;height:30px;border-radius:4px;cursor:pointer;">✕</button>
+    </div>
+
+    <div style="display:flex;flex:1;overflow:hidden;">
+      <div id="vault-list" style="width:30%;border-right:1px solid rgba(0,212,255,0.15);background:#060f18;overflow-y:auto;padding:10px;">
+        </div>
+      <div id="vault-viewer" style="width:70%;padding:20px;overflow-y:auto;background:#020d14;color:#c8dde8;font-family:'JetBrains Mono',monospace;font-size:0.8rem;line-height:1.6;">
+        <div style="color:#4a6a80;text-align:center;margin-top:20vh;">Select a project ledger to view...</div>
+      </div>
     </div>
   </div>
 </div>
