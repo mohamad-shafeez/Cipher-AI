@@ -359,13 +359,11 @@ if __name__ == "__main__":
     
     # --- FIRE THE BOOT GREETING ---
     try:
-        from skills.hello import HelloSkill
-        royal_welcome = HelloSkill().get_royal_greeting()
-        print(f"\n>> Cipher speaking: {royal_welcome}")
-        
-        # If you have your speaker/tts object available here, call it:
-        from core.speak import speak
-        speak(royal_welcome) 
+        if mouth:
+            from skills.hello import HelloSkill
+            royal_welcome = HelloSkill().get_royal_greeting()
+            print(f"\n>> {config.ASSISTANT_NAME} speaking: {royal_welcome}")
+            mouth.speak(royal_welcome)
     except Exception as e:
         print(f">> [Warning] Could not fire greeting: {e}")
 

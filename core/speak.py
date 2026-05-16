@@ -6,12 +6,23 @@ import queue
 
 
 class Speaker:
+    _instance = None
+    _initialized = False
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(Speaker, cls).__new__(cls)
+        return cls._instance
+
     def __init__(self):
+        if self._initialized:
+            return
         print(f">> Loading Neural Voice for {config.ASSISTANT_NAME}...")
         self._queue = queue.Queue()
         self._lock  = threading.Lock() # 🔒 Physical lock for thread safety
         self._thread = threading.Thread(target=self._worker, daemon=True)
         self._thread.start()
+        self._initialized = True
         print(f">> Voice: OFFLINE LOCAL (pyttsx3) — dedicated thread active")
 
     def _worker(self):
@@ -57,6 +68,14 @@ class Speaker:
             return
 
         cleaned = self.clean_text(text)
+        
+        # ── INTERCEPTION FILTER ─────────────────────────────────────
+        if "COMMAND REFERENCE" in cleaned or "════" in cleaned:
+            cleaned = "I have displayed the requested information on your dashboard."
+        elif len(cleaned) > 300:
+            # Prevent reading massive text walls
+            cleaned = "Sir, I have generated the response. Please check the interface."
+
         if not cleaned:
             return
             

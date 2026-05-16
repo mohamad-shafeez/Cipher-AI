@@ -33,15 +33,16 @@ class Listener:
         self.MAX_DURATION     = 30.0  # max recording seconds (was 10)
         self.PRE_BUFFER_SECS  = 0.4   # ring buffer before speech starts
 
-        # ── Adaptive threshold ─────────────────────────────────
-        # Hardcoded to 1500 to prevent background noise hallucination
-        self.THRESHOLD = 1500
+        # ── HARDENED THRESHOLD ─────────────────────────────────
+        # Raised from 1500 to 3000 to severely limit false positive background triggers.
+        self.THRESHOLD = 3000
+        self.dynamic_energy_threshold = False # Strictly static
 
         # ── Interrupt system ───────────────────────────────────
         # Set this flag True from another thread to cancel recording
         self.interrupt_flag = threading.Event()
 
-        print(f">> Ears: ONLINE (threshold={self.THRESHOLD}, silence={self.SILENCE_LIMIT}s)")
+        print(f">> Ears: ONLINE (threshold={self.THRESHOLD}, silence={self.SILENCE_LIMIT}s, dynamic=OFF)")
 
     # ── Noise floor calibration ────────────────────────────────
 
