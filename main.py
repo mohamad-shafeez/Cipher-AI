@@ -366,10 +366,19 @@ if __name__ == "__main__":
         if mouth:
             from skills.hello import HelloSkill
             royal_welcome = HelloSkill().get_royal_greeting()
-            # mouth.speak will handle the printing of the 'clean' version
-            # We print the 'full' version manually here for the technical readout
-            print(f"\n{royal_welcome['full']}")
-            mouth.speak(royal_welcome['clean'])
+            
+            # --- AGGRESSIVE AUDIO SANITIZATION ---
+            if isinstance(royal_welcome, dict):
+                display_text = royal_welcome.get('full', '')
+                speak_text   = royal_welcome.get('clean', '')
+            else:
+                display_text = str(royal_welcome)
+                # Strip emojis from raw string fallback
+                import re
+                speak_text = re.sub(r'[^\x00-\x7F]+', ' ', display_text)
+
+            print(f"\n{display_text}")
+            mouth.speak(speak_text)
     except Exception as e:
         print(f">> [Warning] Could not fire greeting: {e}")
 

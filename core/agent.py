@@ -143,6 +143,10 @@ class CipherAgent:
                 self._log(f"[AGENT] Hard-path match: {time.time()-start:.2f}s")
                 self._record_task(raw_input, [{"step": 1, "skill": "HardOverride(Coding)", "result": result}], result)
                 return result
+            
+            # If we match the heuristic but skills fail, we MUST still exit to avoid planner hallucinations
+            self._log("[AGENT] Hard Override matched but skills returned empty. Forcing exit.")
+            return "Sir, I recognized the coding task but the internal repair module failed to return a result. Please check the file path."
 
         # ── 2. HEURISTIC ROUTING ──────────────────────────
         # Forced Planner triggers: "and", "then", "also", or the "fix" command

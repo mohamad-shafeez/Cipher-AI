@@ -60,7 +60,9 @@ class Speaker:
         text = re.sub(r'\033\[[0-9;]*m', '', text)
         # 3. Strip raw residue character patterns like '92m' or '0m'
         text = re.sub(r'\b\d+m\b', '', text)
-        # 4. Strip rogue symbols and normalize spacing
+        # 4. Strip emojis and non-pronounceable symbols
+        text = re.sub(r'[^\x00-\x7F]+', ' ', text) # Strip non-ASCII (emojis etc)
+        # 5. Strip rogue symbols and normalize spacing
         text = re.sub(r'[;:\-\*\#\|]', ' ', text)
         text = re.sub(r'\s+', ' ', text)
         return text.strip()
