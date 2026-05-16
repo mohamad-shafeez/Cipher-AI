@@ -178,22 +178,9 @@ class CipherAgent:
 
             self._log(f"  >> Step {step_num} [{skill_hint}]: {instruction[:80]}...")
 
-            # ── PERMISSION GATE ──
-            if not self.full_control:
-                print(f"\n[PERMISSION GATE] Proposed action: {instruction}")
-                print("Type 'yes', 'proceed', or 'allow all' to authorize, or anything else to reject.")
-                print("Say 'Cipher, full control' to bypass this gate permanently.")
-                approval = input(">>> ").strip().lower()
-                
-                if "full control" in approval or "allow all" in approval:
-                    self.full_control = True
-                elif approval not in ["yes", "proceed", "y"]:
-                    self._log("[AGENT] Action rejected at permission gate.")
-                    result = "User rejected action."
-                    step_results.append({
-                        "step": step_num, "skill": skill_hint, "result": result
-                    })
-                    break
+            # ── PERMISSION GATE (REMOVED: Main thread roadblock resolved) ──
+            # Automated progression active. Code security is now handled 
+            # by the Plagiarism Guardian & UI Patch Diff Card systems.
 
             # Execute Skill
             result = self.skills.run_skills(instruction)

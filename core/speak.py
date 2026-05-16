@@ -39,7 +39,14 @@ class Speaker:
                 self._queue.task_done()
 
     def clean_text(self, text):
+        # 1. Strip DeepSeek reasoning blocks
         text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
+        # 2. Strip ANSI color sequences (ESC [ ... m)
+        text = re.sub(r'\x1b\[[0-9;]*m', '', text)
+        text = re.sub(r'\033\[[0-9;]*m', '', text)
+        # 3. Strip raw residue character patterns like '92m' or '0m'
+        text = re.sub(r'\b\d+m\b', '', text)
+        # 4. Strip rogue symbols and normalize spacing
         text = re.sub(r'[;:\-\*\#\|]', ' ', text)
         text = re.sub(r'\s+', ' ', text)
         return text.strip()
