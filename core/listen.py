@@ -1,138 +1,131 @@
-# core/listen.py — CIPHER OS  (Streaming VAD Edition)
+# core/listen.py — CIPHER OS (Neural VAD Edition)
 # ============================================================
 #  Upgrades over previous version:
-#  ✓ Adaptive noise floor — calibrates to YOUR room on boot
-#  ✓ Pre-speech ring buffer — never misses first syllable
-#  ✓ Smart silence detection — 2.5s pause allowed, won't cut mid-thought
-#  ✓ Interrupt flag — say "stop" while Cipher is thinking
-#  ✓ Better hallucination filter — expanded noise phrase list
-#  ✓ Max recording cap raised to 30s (was 10s)
+#  ✓ Silero VAD — Neural voice detection (replaces amplitude thresholding)
+#  ✓ Faster-Whisper INT8 — Low memory transcription
+#  ✓ Cross-talk isolation — Sleeps VAD thread while Cipher speaks
 # ============================================================
 
 import pyaudio
 import numpy as np
 import threading
 import collections
-import config
 import time 
+import config
 from faster_whisper import WhisperModel
+from silero_vad import load_silero_vad, get_speech_timestamps
+import torch
+from core.speak import Speaker
 
 class Listener:
     def __init__(self):
-        print(f">> Initializing Instant Ears for {config.ASSISTANT_NAME}...")
+        print(f">> Initializing Neural Ears for {config.ASSISTANT_NAME}...")
 
+        # Load Faster-Whisper
         self.model = WhisperModel(
             config.WHISPER_SIZE,
             device="cpu",
             compute_type="int8"
         )
+        
+        # Load Silero VAD
+        self.vad_model = load_silero_vad()
+        
         self.p = pyaudio.PyAudio()
 
         # ── Tunable constants ──────────────────────────────────
-        self.SILENCE_LIMIT    = 2.5   # seconds of silence before stopping (was 0.8)
-        self.MAX_DURATION     = 30.0  # max recording seconds (was 10)
-        self.PRE_BUFFER_SECS  = 0.4   # ring buffer before speech starts
-
-        # ── HARDENED THRESHOLD ─────────────────────────────────
-        # Raised from 1500 to 3000 to severely limit false positive background triggers.
-        self.THRESHOLD = 3000
-        self.dynamic_energy_threshold = False # Strictly static
+        self.SILENCE_LIMIT    = 1.5   # seconds of silence before stopping
+        self.MAX_DURATION     = 30.0  # max recording seconds
+        self.PRE_BUFFER_SECS  = 0.5   # ring buffer before speech starts
+        self.VAD_THRESHOLD    = 0.5   # probability threshold for speech
+        
+        # Silero VAD requires 16000 Hz, make sure we use it internally
+        self.SAMPLE_RATE = 16000
+        self.CHUNK_SIZE = 512
 
         # ── Interrupt system ───────────────────────────────────
-        # Set this flag True from another thread to cancel recording
         self.interrupt_flag = threading.Event()
+        self.bg_thread = None
 
-        print(f">> Ears: ONLINE (threshold={self.THRESHOLD}, silence={self.SILENCE_LIMIT}s, dynamic=OFF)")
+        print(f">> Ears: ONLINE (Silero VAD + Faster-Whisper INT8)")
 
-    # ── Noise floor calibration ────────────────────────────────
-
-    def _calibrate_noise_floor(self) -> int:
-        """
-        Listen to 0.6s of ambient room noise at boot,
-        set threshold at 3× the average to ignore background hum.
-        """
-        print(">> Calibrating microphone to room noise...")
-        try:
-            stream = self.p.open(
-                format=pyaudio.paInt16, channels=1,
-                rate=config.SAMPLE_RATE, input=True,
-                frames_per_buffer=config.CHUNK_SIZE
-            )
-            samples = []
-            chunks_needed = int(config.SAMPLE_RATE / config.CHUNK_SIZE * 0.6)
-            for _ in range(chunks_needed):
-                data = stream.read(config.CHUNK_SIZE, exception_on_overflow=False)
-                arr  = np.frombuffer(data, dtype=np.int16)
-                samples.append(np.max(np.abs(arr)))
-            stream.stop_stream()
-            stream.close()
-
-            ambient   = float(np.mean(samples))
-            threshold = max(800, int(ambient * 3.0))   # never below 800
-            threshold = min(threshold, 3500)            # never above 3500
-            print(f">> Ambient noise: {ambient:.0f} → Threshold set: {threshold}")
-            return threshold
-
-        except Exception as e:
-            print(f">> Calibration failed ({e}), using default threshold 2000")
-            return 2000
-
-    # ── Main listen method ─────────────────────────────────────
+    def _is_speech(self, audio_data: np.ndarray) -> bool:
+        """Check if audio chunk contains speech using Silero VAD."""
+        # Normalize audio to [-1, 1] for Silero
+        audio_float32 = audio_data.astype(np.float32) / 32768.0
+        audio_tensor = torch.from_numpy(audio_float32)
+        
+        speech_prob = self.vad_model(audio_tensor, self.SAMPLE_RATE).item()
+        return speech_prob > self.VAD_THRESHOLD
 
     def listen(self) -> str:
         """
-        Record audio with:
-        - Pre-speech ring buffer (never misses first syllable)
-        - Smart silence gating (2.5s pause allowed)
-        - Interrupt flag support
-        Returns transcribed text string.
+        Record audio with Neural VAD:
+        - Stream raw 16kHz audio
+        - Use Silero VAD to detect speech
+        - Smart silence gating
+        - Cross-talk isolation (Speaker().busy)
         """
         stream = self.p.open(
             format=pyaudio.paInt16, channels=1,
-            rate=config.SAMPLE_RATE, input=True,
-            frames_per_buffer=config.CHUNK_SIZE
+            rate=self.SAMPLE_RATE, input=True,
+            frames_per_buffer=self.CHUNK_SIZE
         )
 
-        # Pre-speech ring buffer: holds last 0.4s before voice detected
-        pre_buffer_size = int(
-            config.SAMPLE_RATE / config.CHUNK_SIZE * self.PRE_BUFFER_SECS
-        )
+        pre_buffer_size = int(self.SAMPLE_RATE / self.CHUNK_SIZE * self.PRE_BUFFER_SECS)
         pre_buffer = collections.deque(maxlen=pre_buffer_size)
 
         frames         = []
         started        = False
         silence_chunks = 0
-        max_chunks     = int(config.SAMPLE_RATE / config.CHUNK_SIZE * self.MAX_DURATION)
-        silence_limit_chunks = int(
-            config.SAMPLE_RATE / config.CHUNK_SIZE * self.SILENCE_LIMIT
-        )
+        max_chunks     = int(self.SAMPLE_RATE / self.CHUNK_SIZE * self.MAX_DURATION)
+        silence_limit_chunks = int(self.SAMPLE_RATE / self.CHUNK_SIZE * self.SILENCE_LIMIT)
 
         self.interrupt_flag.clear()
-        print(f">> {config.ASSISTANT_NAME} is listening...")
-
+        
+        from core.state_manager import StateManager
+        StateManager.set_status("Listening...")
+        
         listen_start_time = time.time()
-        listen_timeout    = 7.0  # Seconds to wait for a voice before giving up
+        listen_timeout    = 7.0  # Wait for a voice before giving up
 
         while True:
             # ── Interrupt check ────────────────────────────────
             if self.interrupt_flag.is_set():
                 print(">> [Ears] Interrupted by flag.")
                 break
-            # Timeout check: If no voice detected within 7 seconds, stop
+                
             if not started and (time.time() - listen_start_time > listen_timeout):
-                print(">> [Ears] No voice detected. Standing down.")
                 break
 
-            try:
-                data       = stream.read(config.CHUNK_SIZE, exception_on_overflow=False)
-                audio_data = np.frombuffer(data, dtype=np.int16)
-                amplitude  = np.max(np.abs(audio_data))
+            # ── Speaker cross-talk check ────────────────────────
+            if getattr(Speaker(), 'busy', False):
+                # Discard audio and reset state if Cipher is speaking
+                try:
+                    stream.read(self.CHUNK_SIZE, exception_on_overflow=False)
+                except:
+                    pass
+                frames = []
+                started = False
+                time.sleep(0.1) # Sleep thread slightly to save CPU
+                continue
 
-                if amplitude > self.THRESHOLD:
+            try:
+                data = stream.read(self.CHUNK_SIZE, exception_on_overflow=False)
+                audio_data = np.frombuffer(data, dtype=np.int16)
+
+                if self._is_speech(audio_data):
                     if not started:
                         print(">> Voice Detected...")
+                        # 🔇 INSTANT VAD INTERRUPTION PROTOCOL
+                        try:
+                            Speaker().interrupt_stream()
+                        except Exception as tts_int_err:
+                            print(f">> Failed to interrupt TTS: {tts_int_err}")
+
+                        from core.state_manager import StateManager
+                        StateManager.set_status("Speech Detected")
                         started = True
-                        # Prepend pre-buffer so first syllable isn't clipped
                         frames.extend(pre_buffer)
                     frames.append(audio_data)
                     silence_chunks = 0
@@ -144,7 +137,6 @@ class Listener:
                     if silence_chunks >= silence_limit_chunks:
                         # Genuine end of speech
                         break
-
                 else:
                     # Pre-speech: fill ring buffer
                     pre_buffer.append(audio_data)
@@ -161,6 +153,9 @@ class Listener:
         stream.stop_stream()
         stream.close()
 
+        from core.state_manager import StateManager
+        StateManager.set_status("Transcribing...")
+
         if not frames:
             return ""
 
@@ -171,29 +166,28 @@ class Listener:
         )
         return self.transcribe(audio_np)
 
-# ── Transcription ──────────────────────────────────────────
+    # ── Transcription ──────────────────────────────────────────
 
     def transcribe(self, audio_np: np.ndarray) -> str:
         segments, info = self.model.transcribe(
             audio_np,
-            beam_size=3,                     # was 1 — better accuracy with tiny speed cost
-            suppress_tokens=[-1],            # <--- ADDED: Prevents hallucinating filler tokens
-            vad_filter=True,
+            initial_prompt="Cipher, clipboard, system, mobile, test.py, error, computer",
+            beam_size=3,                     
+            suppress_tokens=[-1],            
+            vad_filter=True, # Keep Faster-Whisper VAD as a secondary filter
             vad_parameters=dict(
-                min_silence_duration_ms=400,  # slightly more forgiving than 300
-                threshold=0.55,               # was 0.6 — catches softer speech
+                min_silence_duration_ms=400,  
+                threshold=0.55,               
                 min_speech_duration_ms=200,
             ),
             language="en",
-            condition_on_previous_text=False, # prevents hallucination loops
-        )
-
-        print(
-            f">> Detected: {info.language} "
-            f"(confidence: {info.language_probability:.2f})"
+            condition_on_previous_text=False, 
         )
 
         text = " ".join(seg.text for seg in segments).strip()
+
+        from core.state_manager import StateManager
+        StateManager.set_status("Idle")
 
         # ── Hallucination filter ──────────────────────────────
         NOISE_PHRASES = {
@@ -217,7 +211,6 @@ class Listener:
     def start_background_listening(self, callback):
         """
         Global Persistence: Runs the microphone listener in a non-blocking background thread.
-        Cipher remains active and responsive regardless of window focus.
         """
         def _loop():
             print(">> Background Listener Active.")
@@ -227,20 +220,19 @@ class Listener:
                     if text and callback:
                         callback(text)
                 except Exception as e:
-                    print(">> [Mic Reset] Recovering audio stream...")
+                    print(f">> [Mic Reset] Recovering audio stream... {e}")
                     try:
                         self.p.terminate()
-                    except:
+                    except Exception:
                         pass
                     self.p = pyaudio.PyAudio()
                     continue
                 time.sleep(0.1)
         
-        t = threading.Thread(target=_loop, daemon=True)
-        t.start()
-        return t
-
+        self.bg_thread = threading.Thread(target=_loop, daemon=True)
+        self.bg_thread.start()
+        return self.bg_thread
+        
     def recalibrate(self):
-        """Re-run noise calibration (e.g. after moving rooms)."""
-        self.THRESHOLD = self._calibrate_noise_floor()
-        return f"Microphone recalibrated. New threshold: {self.THRESHOLD}"
+        # Silero VAD handles noise adaptation inherently
+        return "Neural VAD is active. Manual calibration is no longer required."

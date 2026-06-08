@@ -1,6 +1,7 @@
 import sqlite3
 import os
 import re
+import threading
 from datetime import datetime
 
 class VectorMemorySkill:
@@ -13,27 +14,39 @@ class VectorMemorySkill:
             os.makedirs(self.db_dir)
             
         self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
+        
+        # 🛡️ THE CONCURRENCY SHIELD
+        # Enable Write-Ahead Logging to allow simultaneous readers/writers
+        self.conn.execute('PRAGMA journal_mode=WAL;')
+        # Optimize syncing for speed vs safety (NORMAL is best for WAL)
+        self.conn.execute('PRAGMA synchronous=NORMAL;')
+        # If the DB is locked, wait up to 5 seconds before giving up
+        self.conn.execute('PRAGMA busy_timeout=5000;')
+        
+        self.lock = threading.Lock()
         self._init_db()
         print(">> Vector Memory Skill: ONLINE (Long-term recall active)")
 
     def _init_db(self):
-        self.conn.execute("""
-            CREATE TABLE IF NOT EXISTS knowledge (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                topic TEXT,
-                content TEXT,
-                timestamp TEXT
-            )
-        """)
-        self.conn.commit()
+        with self.lock:
+            self.conn.execute("""
+                CREATE TABLE IF NOT EXISTS knowledge (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    topic TEXT,
+                    content TEXT,
+                    timestamp TEXT
+                )
+            """)
+            self.conn.commit()
 
     def save_interaction(self, command: str, result: str):
         try:
-            self.conn.execute(
-                "INSERT INTO knowledge (topic, content, timestamp) VALUES (?, ?, ?)",
-                ("auto_memory", f"Command: {command}\nResult: {result}", datetime.now().isoformat())
-            )
-            self.conn.commit()
+            with self.lock:
+                self.conn.execute(
+                    "INSERT INTO knowledge (topic, content, timestamp) VALUES (?, ?, ?)",
+                    ("auto_memory", f"Command: {command}\nResult: {result}", datetime.now().isoformat())
+                )
+                self.conn.commit()
         except Exception as e:
             print(f"[VectorMemory Error] Failed to save interaction: {e}")
 
@@ -44,10 +57,11 @@ class VectorMemorySkill:
                 return ""
             conditions = " OR ".join(["content LIKE ?"] * len(words))
             params = [f"%{w}%" for w in words]
-            rows = self.conn.execute(
-                f"SELECT content FROM knowledge WHERE {conditions} ORDER BY id DESC LIMIT 3",
-                params
-            ).fetchall()
+            with self.lock:
+                rows = self.conn.execute(
+                    f"SELECT content FROM knowledge WHERE {conditions} ORDER BY id DESC LIMIT 3",
+                    params
+                ).fetchall()
             
             db_res = " ".join([r[0] for r in rows]) if rows else ""
             
@@ -111,11 +125,12 @@ class VectorMemorySkill:
                 
                 print(f">> [VectorMemory] Committing to memory: {fact}")
                 
-                self.conn.execute(
-                    "INSERT INTO knowledge (topic, content, timestamp) VALUES (?, ?, ?)",
-                    (topic, fact, datetime.now().isoformat())
-                )
-                self.conn.commit()
+                with self.lock:
+                    self.conn.execute(
+                        "INSERT INTO knowledge (topic, content, timestamp) VALUES (?, ?, ?)",
+                        (topic, fact, datetime.now().isoformat())
+                    )
+                    self.conn.commit()
                 return f"Sir, I have committed that fact to my long-term memory banks under the sector '{topic}'."
 
             # --- TRIGGER 2: RECALLING KNOWLEDGE ---
@@ -127,10 +142,11 @@ class VectorMemorySkill:
                 print(f">> [VectorMemory] Searching neural archives for: {query}")
                 
                 # Search both topics and content using SQL LIKE
-                rows = self.conn.execute(
-                    "SELECT content FROM knowledge WHERE topic LIKE ? OR content LIKE ? ORDER BY id DESC LIMIT 3",
-                    (f"%{query}%", f"%{query}%")
-                ).fetchall()
+                with self.lock:
+                    rows = self.conn.execute(
+                        "SELECT content FROM knowledge WHERE topic LIKE ? OR content LIKE ? ORDER BY id DESC LIMIT 3",
+                        (f"%{query}%", f"%{query}%")
+                    ).fetchall()
 
                 if rows:
                     facts = " ".join([f"{r[0]}." for r in rows])

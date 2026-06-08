@@ -45,6 +45,7 @@ from skills.env_manager        import EnvManagerSkill
 from skills.clipboard_sync     import ClipboardSyncSkill
 from skills.turbo_brain        import TurboBrainSkill
 from skills.project_analyzer   import ProjectAnalyzerSkill
+from skills.autonomous_coder   import AutonomousCoderSkill
 
 class SkillManager:
     def __init__(self):
@@ -64,6 +65,7 @@ class SkillManager:
             WindowSkill(),
             MediaSkill(),
             CodingSkill(),
+            AutonomousCoderSkill(),
             ResearchSkill(),
 
             # ── Advanced ─────────────────────────────────────

@@ -2,6 +2,8 @@ import os
 import subprocess
 import psutil
 import re
+import time
+import pyautogui
 from typing import Optional
 
 class AppsSkill:
@@ -11,25 +13,6 @@ class AppsSkill:
     """
     def __init__(self):
         print(">> App Skills: ONLINE (Advanced Process Manager Active)")
-        # Map spoken names to (Display Name, [Exact Process Names], [Windows Launch Commands])
-        self.apps = {
-            "chrome": ("Google Chrome", ["chrome.exe"], ["chrome"]),
-            "vs code": ("VS Code", ["Code.exe"], ["code"]),
-            "visual studio code": ("VS Code", ["Code.exe"], ["code"]),
-            "spotify": ("Spotify", ["Spotify.exe"], ["spotify"]),
-            "notepad": ("Notepad", ["notepad.exe"], ["notepad"]),
-            "terminal": ("Terminal", ["wt.exe", "cmd.exe"], ["wt", "cmd"]),
-            "powershell": ("PowerShell", ["powershell.exe"], ["powershell"]),
-            "calculator": ("Calculator", ["CalculatorApp.exe", "calc.exe"], ["calc"]),
-            "paint": ("Paint", ["mspaint.exe"], ["mspaint"]),
-            "vlc": ("VLC Media Player", ["vlc.exe"], ["vlc"]),
-            "word": ("Microsoft Word", ["WINWORD.EXE"], ["winword"]),
-            "excel": ("Microsoft Excel", ["EXCEL.EXE"], ["excel"]),
-            "powerpoint": ("PowerPoint", ["POWERPNT.EXE"], ["powerpnt"]),
-            "settings": ("Settings", ["SystemSettings.exe"], ["ms-settings:"]),
-            "task manager": ("Task Manager", ["Taskmgr.exe"], ["taskmgr"]),
-            "file explorer": ("File Explorer", ["explorer.exe"], ["explorer"])
-        }
         
         # Ignored keywords to prevent overlapping with Browser or OS-level commands
         self.ignored_keywords = [
@@ -38,48 +21,27 @@ class AppsSkill:
         ]
 
     def launch_app(self, app_name: str) -> str:
-        target_key = None
-        for key in self.apps.keys():
-            if re.search(r'\b' + re.escape(key) + r'\b', app_name):
-                target_key = key
-                break
+        clean_name = re.sub(r'^(?:open|launch|start|run)\s+', '', app_name).strip()
         
-        if not target_key:
-            # Fallback: If not in our dictionary, let Windows try to find it blindly
-            clean_name = re.sub(r'^(?:open|launch|start|run)\s+', '', app_name).strip()
-            try:
-                subprocess.Popen(f"start {clean_name}", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                return f"Sir, attempting to launch {clean_name.capitalize()} via the Windows registry."
-            except Exception:
-                return f"Sir, I could not find an application named {clean_name}."
-
-        display_name, _, commands = self.apps[target_key]
-
-        # Launch using the recognized Windows alias
-        for cmd in commands:
-            try:
-                if cmd.startswith("ms-"):
-                    subprocess.Popen(f"start {cmd}", shell=True)
-                else:
-                    subprocess.Popen(f"start {cmd}", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                return f"Sir, opening {display_name}."
-            except Exception:
-                continue
-        
-        return f"Sir, I recognized {display_name}, but the executable failed to launch."
+        try:
+            print(f"[APPS] Using Windows Search to launch: {clean_name}")
+            pyautogui.press('win')
+            time.sleep(0.5)
+            pyautogui.write(clean_name, interval=0.05)
+            time.sleep(0.5)
+            pyautogui.press('enter')
+            
+            return f"Sir, I have attempted to launch {clean_name} via Windows Search."
+        except Exception as e:
+            print(f">> [APPS] Error in Windows Search launch: {e}")
+            return f"Sir, I failed to launch {clean_name} via Windows Search."
 
     def kill_app(self, app_name: str) -> str:
-        target_key = None
-        for key in self.apps.keys():
-            if re.search(r'\b' + re.escape(key) + r'\b', app_name):
-                target_key = key
-                break
-        
-        # Extract raw name if not found in dictionary
+        # Extract raw name
         raw_name = re.sub(r'^(?:close|kill|stop|quit)\s+(?:the\s+)?(?:app\s+)?', '', app_name).strip()
         
-        target_processes = self.apps[target_key][1] if target_key else [f"{raw_name}.exe", raw_name]
-        display_name = self.apps[target_key][0] if target_key else raw_name.capitalize()
+        target_processes = [f"{raw_name}.exe", raw_name]
+        display_name = raw_name.capitalize()
 
         killed_count = 0
         try:

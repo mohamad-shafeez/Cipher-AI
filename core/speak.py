@@ -1,9 +1,22 @@
+# core/speak.py — CIPHER OS (Isolated TTS Engine)
+# ============================================================
+
 import pyttsx3
 import config
 import re
 import threading
 import queue
+import multiprocessing
 
+def tts_subprocess_worker(text):
+    """Module-level pickleable function to run pyttsx3 in an isolated process."""
+    try:
+        engine = pyttsx3.init()
+        engine.setProperty('rate', 170)
+        engine.say(text)
+        engine.runAndWait()
+    except Exception:
+        pass
 
 class Speaker:
     _instance = None
@@ -18,38 +31,36 @@ class Speaker:
         if self._initialized:
             return
         print(f">> Loading Neural Voice for {config.ASSISTANT_NAME}...")
+        self.busy = False  # Synchronously initialize to prevent race conditions
         self._queue = queue.Queue()
-        self._lock  = threading.Lock() # 🔒 Physical lock for thread safety
+        self._active_process = None
+        self._lock = threading.Lock() # 🔒 Physical lock for thread safety
         self._thread = threading.Thread(target=self._worker, daemon=True)
         self._thread.start()
         self._initialized = True
-        print(f">> Voice: OFFLINE LOCAL (pyttsx3) — dedicated thread active")
+        print(f">> Voice: OFFLINE LOCAL (pyttsx3 Process-Isolated) — dedicated loop active")
 
     def _worker(self):
-        # Initialize pyttsx3 inside the dedicated thread
-        engine = pyttsx3.init()
-        engine.setProperty('rate', 170)
-        self.busy = False
         while True:
             text = self._queue.get()
             if text is None:
                 break
             try:
-                # Use lock to prevent concurrent engine access
                 with self._lock:
                     self.busy = True
-                    engine.say(text)
-                    engine.runAndWait()
-                    self.busy = False
-            except RuntimeError as re:
-                # Silently handle "run loop already started"
-                if "run loop already started" in str(re).lower():
-                    pass
-                else:
-                    print(f">> Speech Runtime Error: {re}")
+                    self._active_process = multiprocessing.Process(
+                        target=tts_subprocess_worker, 
+                        args=(text,), 
+                        daemon=True
+                    )
+                    self._active_process.start()
+                
+                # Wait for the child process to finish speaking
+                self._active_process.join()
             except Exception as e:
-                print(f">> Speech Error: {e}")
+                print(f">> Speech Runtime Error: {e}")
             finally:
+                self.busy = False
                 self._queue.task_done()
 
     def clean_text(self, text):
@@ -84,13 +95,7 @@ class Speaker:
         if not cleaned:
             return
             
-        # mouth.speak() will no longer print its own text to terminal
-        # This prevents the "double printing" bug during boot and command loops.
         self._queue.put(cleaned)
-
-    # ══════════════════════════════════════════════════════════
-    #  STREAMING TTS (Disabled to prevent thread collisions)
-    # ══════════════════════════════════════════════════════════
 
     def speak_streamed(self, text_chunk: str):
         """Falls back to queuing the text chunk."""
@@ -101,14 +106,23 @@ class Speaker:
         pass
 
     def interrupt_stream(self):
-        """Drains the queue to cancel pending speech."""
+        """Clears pending queue and instantly terminates active speaking process."""
         while not self._queue.empty():
             try:
                 self._queue.get_nowait()
                 self._queue.task_done()
             except queue.Empty:
                 break
-
+        
+        with self._lock:
+            if self._active_process and self._active_process.is_alive():
+                print("🗣️ [SPEECH INTERRUPT]: Terminating active speech process instantly!")
+                try:
+                    self._active_process.terminate()
+                    self._active_process.join(0.1)
+                except Exception:
+                    pass
+                self.busy = False
 
 _global_speaker = None
 def speak(text: str):

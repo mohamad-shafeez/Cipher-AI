@@ -1,4 +1,0 @@
-echo requirements.txt > .netlifyignore
-echo main.py >> .netlifyignore
-echo core/ >> .netlifyignore
-echo skills/ >> .netlifyignore

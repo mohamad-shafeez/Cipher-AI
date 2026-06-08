@@ -1,453 +1,514 @@
-# main.py — CIPHER OS  (Phase 4 — Full Agent + Turbo Boot)
-# ============================================================
-#   What's new vs Phase 3:
-#   ✓ FastSkillLoader  — parallel boot, all skills in ~1-2s
-#   ✓ Ollama pre-warm  — model loaded before first query
-#   ✓ TurboBrain       — response cache + streaming
-#   ✓ CipherAgent      — multi-step planner
-#   ✓ SessionContext   — conversational memory
-#   ✓ MobileBridge     — phone UI on startup check
-# ============================================================
-
 import sys
-import os
 import threading
-import keyboard
-from flask import Flask, request, jsonify, send_from_directory
-from flask_cors import CORS
+import time
+import os
+import winsound  # <-- Native Windows audio frequencies (Zero dependency cost)
 
-# ── Cipher modules ───────────────────────────────────────────
-from core.listen         import Listener
-from core.think          import Brain
-from core.speak          import Speaker
-from core.fast_loader    import FastSkillLoader      # ← replaces SkillManager
-from core.agent          import CipherAgent
-from core.context        import SessionContext
-from skills.plagiarism_guardian import get_result, set_result
-from skills.turbo_brain  import turbo_think          # ← fast LLM call
-import config
-from skills.autonomous_coder import get_pending_patch, set_pending_patch, clear_pending_patch
-
-# ── Flask ─────────────────────────────────────────────────────
-app     = Flask(__name__)
-CORS(app)
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-WEB_DIR  = os.path.join(BASE_DIR, 'web')
-
-# Declare globals BEFORE the boot function so Python knows they exist
-ear = brain = mouth = skills = agent = context = None
-
-# ── Boot sequence ─────────────────────────────────────────────
-def boot():
-    import time
-    t0 = time.perf_counter()
-    print("=" * 52)
-    print(f"   {config.ASSISTANT_NAME.upper()} OS  — GHOST BOOTING")
-    print("=" * 52)
-
-    global ear, brain, mouth, skills, agent, context
-
-    # 1. Start Ear (Passive)
-    print(">> Initializing Neural Organs...")
-    ear     = Listener()
-
-    # 2. Skills load in parallel (fastest step)
-    skills  = FastSkillLoader(max_workers=14)
-
-    # 3. Core modules
-    brain   = Brain()
-    mouth   = Speaker()
-
-    # 4. Agent + Context (INJECTING THE SPEAKER FOR GHOST MODE)
-    agent   = CipherAgent(skills, brain, speaker=mouth)
-    context = SessionContext(max_turns=config.MAX_CONTEXT_TURNS)
-
-    # 5. Pre-warm Ollama in background (doesn't block boot)
-    skills.prewarm_ollama()
-
-    elapsed = time.perf_counter() - t0
-    print(f">> Ghost Systems Online in {elapsed:.2f}s")
-    print("=" * 52)
-
-# Notice we DO NOT call boot() here anymore!
-# It will be called at the very end of the file.
-
-# ── Core command processor ────────────────────────────────────
-def process_command(command_text: str):
-    command = command_text.lower().strip()
-
-    # Strip noise words
-    for noise in ["the", "a", "an", "hey", "okay", "so", "please"]:
-        command = command.replace(f" {noise} ", " ").strip()
-    if not command:
-        return "I didn't catch that."
-
-    print(f"\n>> [{command[:80]}]")
-
-    # ── SWARM: build / generate ───────────────────────────────
-    if command.startswith("build ") or command.startswith("generate "):
-        from codeskills.swarm import CodingSwarm
-        swarm     = CodingSwarm()
-        clean     = command.replace("build ", "").replace("generate ", "").strip()
-        parts     = clean.split(" ", 1)
-        if len(parts) < 2:
-            return "Please provide a filename and a description."
-        return swarm.execute_swarm(parts[1], filename=parts[0])
-
-    # ── SWARM: fix ────────────────────────────────────────────
-    if command.startswith("fix "):
-        from codeskills.swarm import CodingSwarm
-        swarm = CodingSwarm()
-        parts = command.replace("fix ", "").split(" ", 1)
-        if len(parts) < 2:
-            return "Please tell me the filename and the error."
-        return swarm.debug_file(parts[0], parts[1])
-
-    # ── Session reset ─────────────────────────────────────────
-    if command in ("new session", "new chat", "reset session", "clear memory"):
-        agent.clear_session()
-        context.reset()
-        return "Sir, session memory cleared. Starting fresh."
-
-    # ── Agent core (handles everything else) ──────────────────
-    result = agent.run(command)
-
-    if result:
-        context.add("user",   command)
-        context.add("cipher", result if isinstance(result, str) else result.get("message",""))
-        return result
-
-    # ── Turbo brain fallback (cached LLM) ────────────────────
-    prefix = context.build_prompt_prefix()
-    reply  = turbo_think(prefix + command)   # ← streaming + cache
-    context.add("user",   command)
-    context.add("cipher", reply)
-    return reply
-
-
-# ── Flask routes ──────────────────────────────────────────────
-@app.route('/')
-def serve_root():
-    return send_from_directory(WEB_DIR, 'index.html')
-
-@app.route('/<path:filename>')
-def serve_frontend(filename):
-    return send_from_directory(WEB_DIR, filename)
-
-@app.route('/api/command', methods=['POST'])
-def api_command():
+# Force standard output to UTF-8 to prevent Windows UnicodeEncodeError on emojis
+if sys.stdout.encoding != 'utf-8':
     try:
-        data      = request.json or {}
-        user_text = data.get('command', '').strip()
-        voice     = data.get('voice', False)
-        
-        print(f"\n[WEB] {user_text[:80]}")
-        if not user_text:
-            return jsonify({"response": "No command received.", "code": None})
+        sys.stdout.reconfigure(encoding='utf-8')
+    except AttributeError:
+        pass
 
-        # ── Synchronous execution ──────────────────────────────────
-        result = process_command(user_text)
+# 🛡️ Guard the import phase against Windows process replication noise
+try:
+    from core.hud_server import HUDServer
+    from core.system_tray import CipherSystemTray
+    from core.hotkey_listener import HotkeyListener
+    from core.context_targeter import ContextTargeter
+    from core.generation_core import GenerationCore
+    from core.orchestrator import MasterOrchestrator
+    from core.event_bus import EventBus, ClipboardWatcher, SystemIdleWatcher, Event
+    from core.worker_manager import crash_shield
+    
+    # Initialize enhanced subsystems
+    from core.conversation_manager import ConversationManager
+    from core.function_calling import initialize_builtin_tools
+    import config
+except KeyboardInterrupt:
+    # If a background worker is hit with Ctrl+C mid-import, kill it silently
+    os._exit(0)
 
-        # ── Voice handling ─────────────────────────────────────────
-        if voice and mouth:
-            text_to_speak = result.get("message", "") if isinstance(result, dict) else result
-            if text_to_speak:
-                import threading
-                def speak_task():
-                    if len(text_to_speak) > 120 and brain:
-                        _stream_speak(text_to_speak, mouth)
-                    else:
-                        mouth.speak(text_to_speak)
-                threading.Thread(target=speak_task).start()
+# Initialize conversation manager (for multi-turn support)
+conversation_manager = None
+try:
+    conversation_manager = ConversationManager()
+    print("[MAIN] Multi-turn conversation manager initialized")
+except Exception as e:
+    print(f"[MAIN] Warning: Conversation manager failed to initialize: {e}")
 
-        # ── Final JSON Return ──────────────────────────────────────
-        if isinstance(result, dict):
-            return jsonify({
-                "response": result.get("message", ""),
-                "code":     result.get("code", None)
-            })
-        
-        return jsonify({
-            "response": str(result),
-            "code":     None
-        })
-
+# Initialize function calling tools (for structured tool use)
+if getattr(config, "ENABLE_FUNCTION_CALLING", True):
+    try:
+        initialize_builtin_tools()
+        print("[MAIN] Function calling tools initialized")
     except Exception as e:
-        print(f"API Error: {e}")
-        # Return 500 so frontend knows it's a server crash
-        return jsonify({"response": f"Backend Error: {str(e)}", "code": None}), 500
+        print(f"[MAIN] Warning: Function calling tools failed to initialize: {e}")
 
-@app.route('/api/agent/log', methods=['GET'])
-def api_agent_log():
-    return jsonify({"log": agent.get_task_log()[-20:]})
-
-@app.route('/api/agent/context', methods=['GET'])
-def api_agent_context():
-    return jsonify({
-        "history":    context.get_history(),
-        "turns":      context.turn_count(),
-        "session_mem": agent.get_session_memory(),
-    })
-
-@app.route('/api/skills', methods=['GET'])
-def api_skills():
-    return jsonify({"skills": skills.skill_names(), "count": len(skills.skills)})
-
-def run_flask():
-    import logging
-    logging.getLogger('werkzeug').setLevel(logging.ERROR)
-    from flask_cors import CORS
-    CORS(app)
-    # Allows connections from your phone/external devices
-    app.run(host="0.0.0.0", port=5500, debug=False, use_reloader=False)
-
-# ── TELEMETRY & VAULT ROUTES ──────────────────────────────────
-import psutil
-from werkzeug.utils import secure_filename
-
-@app.route('/api/telemetry', methods=['GET'])
-def api_telemetry():
-    cpu = psutil.cpu_percent(interval=0)
-    ram = psutil.virtual_memory().percent
-    disk = psutil.disk_usage('/').percent
-    return jsonify({"cpu": cpu, "ram": ram, "disk": disk})
-
-@app.route('/api/upload', methods=['POST'])
-def api_upload():
-    if 'file' not in request.files:
-        return jsonify({"error": "No file part"}), 400
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({"error": "No selected file"}), 400
-    if file and file.filename.endswith('.py'):
-        target_dir = os.path.join(os.getcwd(), 'learn_skill')
-        os.makedirs(target_dir, exist_ok=True)
-        filename = secure_filename(file.filename)
-        file.save(os.path.join(target_dir, filename))
-        return jsonify({"status": "success", "message": f"File {filename} assimilated."})
-    return jsonify({"error": "Only .py files are supported for assimilation."}), 400
-
-@app.route('/api/vault', methods=['GET'])
-def api_vault():
-    projects = []
-    projects_dir = os.path.join(os.getcwd(), 'projects')
-    if os.path.exists(projects_dir):
-        for root, dirs, files in os.walk(projects_dir):
-            for file in files:
-                if file.endswith('.md'):
-                    rel_path = os.path.relpath(os.path.join(root, file), projects_dir)
-                    name = rel_path.replace('.md', '').replace('\\', '/')
-                    projects.append({"name": name})
-    return jsonify({"projects": projects})
-
-@app.route('/api/vault/<path:project_name>', methods=['GET'])
-def api_vault_project(project_name):
-    projects_dir = os.path.join(os.getcwd(), 'projects')
-    if '..' in project_name:
-        return jsonify({"error": "Invalid path"}), 400
-    path = os.path.join(projects_dir, project_name + '.md')
-    if os.path.exists(path):
-        try:
-            with open(path, 'r', encoding='utf-8') as f:
-                content = f.read()
-            return jsonify({"content": content})
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
-    return jsonify({"error": "Not found"}), 404
+# 🔒 Global placeholders (prevents child process overhead and static analysis warnings)
+voice_hardware = None
+kernel = None
+live_engine = None
+task_queue = None
+IS_GENERATING = False
 
 
-# ── GHOST OS CORE ─────────────────────────────────────────────
-def handle_voice_command(user_text):
-    """Callback for background microphone listener — now with feedback protection."""
-    global agent, mouth, brain
-    if not agent or not mouth:
-        return # Still booting
+def safe_orchestrator_call(transcript, active_directory):
+    """
+    Wraps the orchestrator in a safety net and offloads to the process supervisor.
+    This prevents the main OS daemon from freezing if an AI worker hangs.
+    """
+    # Generates a quick metadata tracking ID
+    task_id = f"task_{int(time.time())}"
+    
+    # Non-blocking handoff directly to the Kernel Supervisor Process lane
+    # For a high-level orchestration goal, let the swarm process chew on it
+    print(f"📡 [QUEUED]: Routing '{transcript}' to async process supervisor...")
+    try:
+        kernel.submit_task(
+            worker_name="swarm",
+            task_id=task_id,
+            payload={"transcript": transcript, "dir": active_directory}
+        )
+    except Exception as e:
+        print(f"💥 [CRITICAL]: Supervisor refused to route -> {e}")
+        winsound.Beep(200, 500)
 
-    # ── FEEDBACK PROTECTION ─────────────────────────────────────
-    # If Cipher is currently speaking, ignore the mic input
-    if hasattr(mouth, 'busy') and mouth.busy:
-        return
-
-    # Dismissal Protocol (Voice Command to hide the Ghost)
-    if any(w in user_text.lower() for w in ["dismissed", "go to sleep", "close cipher", "goodbye"]):
-        mouth.speak("Returning to the shadows, Shafeez. Systems standing by.")
+def trigger_livetalk_mode():
+    global IS_GENERATING
+    
+    # 🛑 Check if engine is busy
+    if IS_GENERATING:
+        print("⏳ [ENGINE BUSY]: Generation loop already active. Trigger stacked and ignored.")
+        winsound.Beep(200, 300)  # Low warning beep
         return
         
-    # Process the command
-    response = process_command(user_text)
-    
-    if isinstance(response, dict):
-        mouth.speak(response.get('message', 'Done.'))
-    elif response:
-        # ── Streaming TTS path ──────────────────────────────────
-        # If the response is long (likely from LLM), try to stream
-        # sentence-by-sentence for faster perceived response time.
-        if len(response) > 120 and brain:
-            _stream_speak(response, mouth)
-        else:
-            mouth.speak(response)
-
-
-def _stream_speak(text: str, speaker):
-    """Split a long response into sentences and stream them to TTS."""
-    import re
-    # Split on sentence boundaries while keeping the delimiters
-    sentences = re.split(r'(?<=[.!?])\s+', text)
-    for sentence in sentences:
-        sentence = sentence.strip()
-        if sentence:
-            speaker.speak_streamed(sentence)
-    speaker.end_stream()
-
-def summon_cipher():
-    """Triggered by the Hotkey. Wakes up the Ghost."""
-    print("\n>> [GHOST SUMMONED]")
-    if agent:
-        agent.activate_ghost() 
-
-def ghost_listener():
-    """Monitors the hotkey silently in the background"""
-    import keyboard
-    # Bind Ctrl+Space to the summon function
-    keyboard.add_hotkey(config.GHOST_HOTKEY, summon_cipher)
-    
-    # Keep the program running at 0% CPU while waiting
-    keyboard.wait()
-
-# ══════════════════════════════════════════════════════════════
-# Cipher Autonomous Coder — Kill-Switch Web API
-# ══════════════════════════════════════════════════════════════
-
-@app.route('/api/patch/pending', methods=['GET'])
-def api_patch_pending():
-    patch = get_pending_patch()
-    if not patch:
-        return jsonify({"status": "none"})
-    return jsonify({
-        "status":    "pending",
-        "file":      patch.get("file", ""),
-        "error":     patch.get("error", ""),
-        "diff":      patch.get("diff", ""),
-        "timestamp": patch.get("timestamp", ""),
-    })
-
-@app.route('/api/patch/decision', methods=['POST'])
-def api_patch_decision():
-    data = request.json or {}
-    decision = data.get("decision", "").lower()
-
-    if decision not in ("approved", "rejected"):
-        return jsonify({"error": "Invalid decision. Use 'approved' or 'rejected'."}), 400
-
-    patch = get_pending_patch()
-    if not patch:
-        return jsonify({"error": "No pending patch found."}), 404
-
-    patch["status"] = decision
-    set_pending_patch(patch)
-
-    return jsonify({"status": decision, "file": patch.get("file", "")})
-
-# ── EXECUTION ENTRY POINT ─────────────────────────────────────
-if __name__ == "__main__":
-    # 1. Run the system boot
-    boot()
-
-    # 2. Start Flask in a background thread for the Web HUD
-    import threading
-    threading.Thread(target=run_flask, daemon=True).start()
-    print(f">> Ghost HUD active at: http://localhost:{config.WEB_PORT}")
-
-    # 3. Start the Ghost Hotkey Listener
-    print(f">> GHOST MODE ACTIVE: Summon with {config.GHOST_HOTKEY.upper()}")
-    
-    # --- FIRE THE BOOT GREETING ---
     try:
-        if mouth:
-            from skills.hello import HelloSkill
-            royal_welcome = HelloSkill().get_royal_greeting()
+        IS_GENERATING = True
+        HUDServer.set_working_state(True)
+        
+        # Crisp activation beep for LiveTalk (600Hz, different from Sovereign's 800Hz)
+        winsound.Beep(600, 150)  
+        
+        print("⚡ [LIVETALK MODE]: Instant chat active...")
+        HUDServer.push_log("⚡ LIVETALK: Waking fast-path conversational interface...")
+        
+        # 1. Capture workspace context
+        active_directory = ContextTargeter.get_active_window_context()
+        print(f"🚀 [LIVETALK TARGET]: Active directory mapped to -> '{active_directory}'")
+
+        # 2. Record voice command input
+        if voice_hardware and hasattr(voice_hardware, 'listen_and_transcribe'):
+            print("🎤 [LIVETALK MIC ACTIVE]: Listening to live voice chat...")
+            HUDServer.push_log("🎤 MIC ACTIVE: Recording local conversational speech...")
+            HUDServer.set_agent("LISTENING")
             
-            # --- AGGRESSIVE AUDIO SANITIZATION ---
-            if isinstance(royal_welcome, dict):
-                display_text = royal_welcome.get('full', '')
-                speak_text   = royal_welcome.get('clean', '')
-            else:
-                display_text = str(royal_welcome)
-                # Strip emojis from raw string fallback
-                import re
-                speak_text = re.sub(r'[^\x00-\x7F]+', ' ', display_text)
+            user_voice_intent = voice_hardware.listen_and_transcribe()
+            
+            # Update transcript live!
+            HUDServer.set_transcript(user_voice_intent)
+            
+            print(f"🗣️ [LIVETALK TRANSCRIPT]: Raw Vocal Input -> '{user_voice_intent}'")
+            HUDServer.push_log(f"🗣️ TRANSCRIPT: Received input: '{user_voice_intent}'")
+        else:
+            user_voice_intent = ""
 
-            print(f"\n{display_text}")
-            mouth.speak(speak_text)
+        # 🛡️ THE HALLUCINATION FILTER & SANITY CHECK
+        if not user_voice_intent:
+            user_voice_intent = ""
+            
+        intent_lower = user_voice_intent.lower().strip()
+        
+        # Ignore mic noise/hallucinations
+        ghost_phrases = ["subscribing", "like and subscribe", "amara.org", "captioning", "translation", "subtitles", "thank you for watching"] 
+        is_ghost = any(phrase in intent_lower for phrase in ghost_phrases)
+
+        if len(intent_lower) < 3 or is_ghost:
+            print(f"🛑 [LIVETALK ABORT]: Input rejected: '{user_voice_intent}'")
+            HUDServer.push_log("🛑 LIVETALK ABORT: Ignored quiet or invalid speech.")
+            winsound.Beep(300, 150)  # Low error buzzer
+            return
+
+        # 3. Process voice instantly via fast path LiveTalkEngine
+        HUDServer.set_agent("THINKING")
+        live_engine.process_voice(user_voice_intent, active_directory)
+        
+    finally:
+        IS_GENERATING = False
+        HUDServer.set_agent("IDLE")
+        HUDServer.set_working_state(False)
+
+def autonomous_vocal_activation_bypass():
+    global IS_GENERATING
+    
+    # 🛑 SCENARIO A: Engine is busy processing. Alert with a low warning buzzer.
+    if IS_GENERATING:
+        print("⏳ [ENGINE BUSY]: Generation loop already active. Trigger stacked and ignored.")
+        winsound.Beep(200, 300)  # Low 200Hz warning buzzer frequency
+        return
+        
+    try:
+        IS_GENERATING = True
+        HUDServer.set_working_state(True)
+        
+        # 🔔 SCENARIO B: Success capture event. Alert with a sharp, crisp initialization beep.
+        winsound.Beep(800, 150)  # High-pitched 800Hz instant alert confirmation
+        
+        print("🎙️ [SENSORY CHANNELS]: Hardware hotkey bypass detected. Scanning workspace context...")
+        HUDServer.push_log("🎙️ SENSORY LINK: Background context scan forced open via keyboard hook.")
+        
+        # 1. Capture the folder context from your focused application window
+        active_directory = ContextTargeter.get_active_window_context()
+        print(f"🚀 [SOVEREIGN EXECUTION TARGET]: Active directory pipeline locked onto -> '{active_directory}'")
+
+        # 2. CAPTURE ACTUAL AUDIO SPEECH TRANSCRIPT INSIDE THE THREAD
+        if voice_hardware and hasattr(voice_hardware, 'listen_and_transcribe'):
+            print("🎤 [MIC ACTIVE]: Listening to live voice command input...")
+            HUDServer.push_log("🎤 MIC ACTIVE: Recording local speech stream...")
+            HUDServer.set_agent("LISTENING")
+            
+            user_voice_intent = voice_hardware.listen_and_transcribe()
+            
+            # Update transcript live!
+            HUDServer.set_transcript(user_voice_intent)
+            
+            print(f"🗣️ [TRANSCRIPT ACQUIRED]: Raw Vocal Input -> '{user_voice_intent}'")
+            HUDServer.push_log(f"🗣️ TRANSCRIPT: Received input: '{user_voice_intent}'")
+        else:
+            user_voice_intent = ""
+
+        # 🛡️ THE HALLUCINATION FILTER & SANITY CHECK
+        if not user_voice_intent:
+            user_voice_intent = ""
+            
+        intent_lower = user_voice_intent.lower().strip()
+        
+        # 🌟 Relax the filters for complex commands
+        # Only block if it's REALLY short (less than 5 chars) or definitely trash
+        ghost_phrases = ["subscribing", "like and subscribe", "amara.org", "captioning", "translation", "subtitles", "thank you for watching"] 
+        is_ghost = any(phrase in intent_lower for phrase in ghost_phrases)
+
+        # Allow complex sentences, reject only very short or clearly wrong input
+        if len(intent_lower) < 5 or is_ghost:
+            print(f"🛑 [ENGINE ABORT]: Input rejected (too short/garbage): '{user_voice_intent}'")
+            HUDServer.push_log("🛑 ENGINE ABORT: Ignored AI microphone hallucination.")
+            winsound.Beep(300, 150)  # Low error buzzer
+            return
+
+        # 🌟 THE NEW ROUTING LOGIC
+        clean_text = user_voice_intent.lower().strip()
+
+        # New conversational triggers for the Swarm sandbox
+        if "fix the code" in clean_text or "file in front of me" in clean_text or "fix" in clean_text:
+            print("🌪️ [SOVEREIGN]: 'Fix Code' intent detected. Auto-targeting open workspace...")
+
+            # 1. DYNAMIC FILE EXTRACTION: Parse filename from voice command
+            target_file = "D:/Visual Studio/Cipher-AI/generated_code/test.py"  # Default fallback
+            words = user_voice_intent.split()
+            for word in words:
+                # Extract filename if it ends with a known extension
+                if any(word.lower().endswith(ext) for ext in [".py", ".js", ".html", ".ts", ".jsx", ".tsx"]):
+                    target_file = f"D:/Visual Studio/Cipher-AI/generated_code/{word.lower()}"
+                    print(f"🎯 [CONTEXT TARGETING]: Dynamically locked onto file from voice input: {word.lower()}")
+                    break
+
+            # 2. We rename the payload text so your background Swarm Skill knows exactly what to do
+            demo_goal = "Analyze the active open file, detect syntax or logical errors, and fix them safely."
+
+            # 3. Pass the task across the IPC bridge to the coding sandbox queue with extracted file path
+            task_id = f"task_{int(time.time())}"
+            kernel.submit_task("coding", task_id, {
+                "transcript": demo_goal,
+                "dir": active_directory,
+                "target_file": target_file
+            })
+            return
+
+        # Route the verified transcript asynchronously via TaskQueue
+        safe_orchestrator_call(user_voice_intent, active_directory)
+        
+    finally:
+        # Release the generation gatekeeper lock
+        IS_GENERATING = False
+        HUDServer.set_agent("IDLE") # Reset the HUD UI back to standby mode
+        HUDServer.set_working_state(False)
+
+
+class TemporalScheduleSkill:
+    def __init__(self):
+        self.capabilities = ["temporal.schedule"]
+        
+    @crash_shield
+    def execute(self, payload: dict) -> bool:
+        from core.temporal_engine import TemporalEngine
+        engine = TemporalEngine()
+        query = payload.get("query")
+        return engine.parse_and_schedule(query)
+
+class ConversationSkill:
+    def __init__(self):
+        self.capabilities = ["conversation"]
+        
+    @crash_shield
+    def execute(self, payload: dict) -> bool:
+        from core.speak import speak
+        query = payload.get("query", "")
+        text_lower = query.lower().strip()
+        
+        # 🛡️ THE SYSTEM INTEGRITY HEALTH CHECK PROTOCOL
+        if "how are you" in text_lower or "system status" in text_lower or "health check" in text_lower:
+            from core.cognitive_memory import CognitiveMemory
+            mem = CognitiveMemory()
+            recent_errors = mem.recall_recent_episodes(limit=10)
+            has_major_errors = any("error" in str(ep).lower() or "crash" in str(ep).lower() for ep in recent_errors)
+            
+            status = "experiencing minor telemetry events" if has_major_errors else "fully operational"
+            response = (
+                f"I am {status}. "
+                f"The Watchdog supervisor is active, the Event Bus is circulating, "
+                f"and the Guardian Runtime is maintaining process isolation."
+            )
+            speak(response)
+            return True
+            
+        from core.think import Brain
+        brain = Brain()
+        response = brain.think(query)
+        speak(response)
+        return True
+
+class CodeGenerationSkill:
+    def __init__(self):
+        self.capabilities = ["code.generate"]
+        
+    @crash_shield
+    def execute(self, payload: dict) -> bool:
+        from core.generation_core import GenerationCore
+        import os
+        creator = GenerationCore()
+        query = payload.get("query")
+        active_dir = os.getcwd()
+        return creator.generate_new_module(query, active_dir)
+
+
+def handle_clipboard_event(event: Event):
+    """Callback function triggered when the clipboard changes."""
+    text = event.data
+    # Ignore massive copies, just look at small snippets or URLs
+    if len(text) < 200: 
+        print(f"📋 [BACKGROUND SENSE]: User copied text -> '{text.strip()}'")
+        HUDServer.push_log(f"📋 EVENT: Clipboard updated.")
+
+def handle_user_return(event: Event):
+    """Callback triggered when the user moves the mouse after being idle."""
+    print("👋 [BACKGROUND SENSE]: User returned to the computer. Waking up cognitive systems...")
+    HUDServer.push_log("👋 EVENT: User activity detected. Resuming.")
+    # Here you could eventually tell the Orchestrator to say "Welcome back, sir."
+
+import psutil
+import os
+import sys
+
+def elevate_main_runtime():
+    """Forces Windows to prioritize LiveTalk and Hotkeys above all other apps."""
+    try:
+        p = psutil.Process(os.getpid())
+        if sys.platform == "win32":
+            p.nice(psutil.HIGH_PRIORITY_CLASS)
+        print("⚡ [KERNEL]: Main OS Daemon elevated to HIGH CPU Priority for LiveTalk.")
     except Exception as e:
-        print(f">> [Warning] Could not fire greeting: {e}")
+        print(f"⚠️ [KERNEL FATAL]: Failed to elevate main process: {e}")
 
-    # --- START LISTENING AFTER GREETING (Prevents Double-Greeting Hallucination) ---
-    import time
-    time.sleep(0.5) # Let the voice engine spin up
-    if ear:
-        ear.start_background_listening(handle_voice_command)
+def main():
+    global voice_hardware, kernel, live_engine, task_queue, IS_GENERATING
+    print("🏁 [SOVEREIGN ENGINE]: Initializing global background daemon systems...")
+    
+    # ==========================================
+    # ⚡ SET HIGH PRIORITY FOR MAIN PROCESS
+    # ==========================================
+    elevate_main_runtime()
+        
+    # ==========================================
+    # 🛡️ BOOT TASK QUEUE AND KERNEL SUPERVISOR
+    # ==========================================
+    from core.task_queue import TaskQueue
+    from core.worker_manager import WorkerSupervisor
+    task_queue = TaskQueue()
+    kernel = WorkerSupervisor()
+
+    # ==========================================
+    # 🎙️ INITIALIZE THE VOICE TRANSCRIBER EXPLICITLY
+    # ==========================================
+    try:
+        from core.listen import Listener
+        voice_hardware = Listener()
+        # Support the exact method name requested by the user
+        setattr(voice_hardware, 'listen_and_transcribe', voice_hardware.listen)
+    except Exception as e:
+        print(f"⚠️ [SENSORY BLINDNESS]: Failed to load Neural Ears (Listener). Fallback active. Error: {e}")
+        try:
+            from skills.voice_neural import VoiceNeuralSkill
+            voice_hardware = VoiceNeuralSkill()
+        except Exception:
+            voice_hardware = None
+
+    # ==========================================
+    # ⚡ INITIALIZE LIVETALK ENGINE
+    # ==========================================
+    from core.live_mode import LiveTalkEngine
+    from core.speak import Speaker
+    live_engine = LiveTalkEngine(
+        orchestrator_callback=safe_orchestrator_call,
+        tts_engine=Speaker()
+    )
+
+    # ==========================================
+    # 🛡️ BOOT CIPHER KERNEL SUPERVISOR PROCESSES
+    # ==========================================
+    kernel.initialize_kernel()
+        
+    HUDServer.start(port=5000)
+    
+    # ==========================================
+    # 🛡️ IGNITE THE SYSTEM WATCHDOG
+    # ==========================================
+    from core.watchdog import Watchdog
+    Watchdog().start()
+    
+    # ==========================================
+    # 🧠 IGNITE THE CENTRAL NERVOUS SYSTEM
+    # ==========================================
+    bus = EventBus()
+    
+    # Ignite Cognitive Memory
+    from core.cognitive_memory import CognitiveMemory
+    memory = CognitiveMemory()
+    
+    # Plug the memory directly into the Event Bus!
+    bus.subscribe("os.clipboard.changed", memory.log_episode)
+    bus.subscribe("os.system.active", memory.log_episode)
+    bus.subscribe("os.app.launched", memory.log_episode)
+    bus.subscribe("graph.step.success", memory.log_episode)
+    
+    # Register our reactions (Subscribers)
+    bus.subscribe("os.clipboard.changed", handle_clipboard_event)
+    bus.subscribe("os.system.active", handle_user_return)
+
+    # ==========================================
+    # 📱 IGNITE THE MOBILE MESH
+    # ==========================================
+    from core.mobile_bridge import MobileBridge
+    TELEGRAM_BOT_TOKEN = "8734486592:AAHdLo_oixaEVWAqrfRxJ9jj39Aj___Cb-M" 
+    TELEGRAM_CHAT_ID = "6748077713"
+    
+    bridge = MobileBridge(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID)
+    
+    # Subscribe the bridge to OS events so it texts you when things finish
+    bus.subscribe("swarm.consensus.reached", bridge.handle_system_event)
+    bus.subscribe("graph.step.success", bridge.handle_system_event)
+    bus.subscribe("os.system.idle", bridge.handle_system_event)
+    
+    # Boot the polling daemon
+    bridge.start()
+    
+    # Start the sensory organs (Publishers)
+    ClipboardWatcher(bus).start()
+    SystemIdleWatcher(bus, idle_threshold_seconds=60).start() # Set to 60s for testing
+
+    # ==========================================
+    # 🔌 BOOT THE CAPABILITY REGISTRY
+    # ==========================================
+    from core.capability_registry import CapabilityRegistry
+    from skills.system_operator_skill import SystemOperatorSkill
+    from skills.swarm_skill import SwarmSkill
+    from skills.vision_skill import VisionSkill
+    
+    CapabilityRegistry.register_skill(SystemOperatorSkill())
+    CapabilityRegistry.register_skill(TemporalScheduleSkill())
+    CapabilityRegistry.register_skill(ConversationSkill())
+    CapabilityRegistry.register_skill(CodeGenerationSkill())
+    CapabilityRegistry.register_skill(SwarmSkill())
+    CapabilityRegistry.register_skill(VisionSkill())
+    # ==========================================
+    
+    # ⏰ START THE TEMPORAL MONITORING ENGINE
+    try:
+        from core.temporal_engine import TemporalEngine
+        temporal = TemporalEngine()
+        temporal.start_daemon()
+    except Exception as e:
+        print(f"⚠️ [TEMPORAL BOOT FAILURE]: Could not start Temporal Engine: {e}")
+    
+    listener = HotkeyListener(
+        sovereign_callback=autonomous_vocal_activation_bypass,
+        livetalk_callback=trigger_livetalk_mode
+    )
+    listener.start()
+
+    # Spawns Cipher's persistent system tray instance on a dedicated background thread
+    tray = CipherSystemTray()
+    threading.Thread(target=tray.launch_background_service, daemon=True).start()
+
+def handle_os_interrupt(sig, frame):
+    """The absolute override for CTRL+C."""
+    print("\n🚨 [OS INTERRUPT]: CTRL+C signal intercepted! Commencing teardown...")
+    
+    # 1. DISARM WATCHDOG FIRST so it doesn't try to auto-respawn workers
+    try:
+        from core.watchdog import Watchdog
+        Watchdog().stop() # If implemented as a Singleton
+    except Exception:
+        pass
+
+    print("🛑 [KERNEL]: Initiating global teardown sequence...")
+    
+    # 1. Sever the low-level Windows keyboard hooks
+    import keyboard
+    try:
+        keyboard.unhook_all()
+    except Exception:
+        pass
+    
+    # 2. Trigger the Kernel Kill-Switch
+    try:
+        if kernel:
+            kernel.shutdown()
+    except Exception as e:
+        print(f"⚠️ [SHUTDOWN WARNING]: Kernel teardown incomplete: {e}")
+        
+    # 3. Force exit the Python interpreter
+    print("👋 [SOVEREIGN ENGINE]: Offline. Goodbye.")
+    os._exit(0) # os._exit() is much stronger than sys.exit()
+
+if __name__ == "__main__":
+    import signal
+
+    # ☢️ BIND THE OS SIGNAL OVERRIDE FIRST
+    signal.signal(signal.SIGINT, handle_os_interrupt)
 
     try:
-        ghost_listener()
-    except KeyboardInterrupt:
-        import os
-        print(f"\n>> Shutting down {config.ASSISTANT_NAME} safely...")
-        if agent:
-            agent.clear_temp_files()
-        os._exit(0)
+        main()
 
-# ══════════════════════════════════════════════════════════════
- 
-@app.route('/api/plagiarism/check', methods=['POST'])
-def api_plagiarism_check():
-    """
-    Trigger plagiarism analysis from Web UI.
-    Body: {
-      "text": "...",           # required if no file
-      "file_path": "...",      # optional: path to file
-      "compare_file": "...",   # optional: for doc vs doc mode
-      "mode": "internet"|"document"
-    }
-    """
-    data      = request.json or {}
-    text      = data.get("text", "").strip()
-    file_path = data.get("file_path", "").strip()
-    compare   = data.get("compare_file", "").strip()
-    mode      = data.get("mode", "internet")
- 
-    # Find the skill instance
-    plag_skill = None
-    for skill in skills.skills:
-        if skill.__class__.__name__ == "PlagiarismGuardianSkill":
-            plag_skill = skill
-            break
- 
-    if not plag_skill:
-        return jsonify({"error": "PlagiarismGuardianSkill not loaded."}), 503
- 
-    if file_path:
-        command = f"check plagiarism in {file_path}"
-        if compare:
-            command = f"compare {file_path} with {compare} for plagiarism"
-    elif text:
-        command = f"plagiarism check this text: {text}"
-    else:
-        return jsonify({"error": "Provide 'text' or 'file_path'."}), 400
- 
-    result_msg = plag_skill.execute(command)
-    return jsonify({"status": "started", "message": result_msg})
- 
- 
-@app.route('/api/plagiarism/result', methods=['GET'])
-def api_plagiarism_result():
-    """
-    Poll for analysis results.
-    Returns full report JSON when ready, or {"status": "pending"} while running.
-    """
-    from skills.plagiarism_guardian import get_result
-    result = get_result()
-    if not result:
-        return jsonify({"status": "pending"})
-    return jsonify({"status": "ready", "report": result})        
-# ══════════════════════════════════════════════════════════════
+        # A simple sleep loop keeps the main thread alive but perfectly
+        # responsive to SIGINT (Ctrl+C) interrupts.
+        print("🛑 Press CTRL+C in this terminal to safely shutdown Cipher OS.")
+        while True:
+            time.sleep(1)
+
+    except KeyboardInterrupt:
+        # Catch any stray interrupts from child processes and exit silently
+        print("\n🚨 [OS INTERRUPT]: CTRL+C signal intercepted! Commencing teardown...")
+        print("🛑 [KERNEL]: Initiating global teardown sequence...")
+        print("✅ [KERNEL]: All execution lanes purged. System offline.")
+        print("👋 [SOVEREIGN ENGINE]: Offline. Goodbye.")
+        os._exit(0)
+    except SystemExit:
+        pass
+    except Exception as e:
+        import traceback
+        crash_trace = traceback.format_exc()
+        print(f"💥 [CRITICAL CRASH]: Sovereign Engine main process died: {e}")
+        print(crash_trace)
+        print("🔄 [SOVEREIGN ENGINE]: Re-igniting runtime supervisor in 5 seconds...")
+        time.sleep(5)

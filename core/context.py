@@ -6,6 +6,7 @@
 # ============================================================
 
 from datetime import datetime
+import threading
 
 
 class SessionContext:
@@ -32,6 +33,7 @@ class SessionContext:
             "msg_count": 0,
             "topics":    [],
         }
+        self.lock = threading.Lock()
 
     # ------------------------------------------------------------------ #
     #  ADD TURN                                                            #
@@ -43,17 +45,18 @@ class SessionContext:
         role: "user" or "cipher"
         text: the message content
         """
-        self.history.append({
-            "role":      role,
-            "text":      str(text)[:600],   # cap length
-            "timestamp": datetime.now().strftime("%H:%M:%S"),
-        })
-        self.meta["msg_count"] += 1
+        with self.lock:
+            self.history.append({
+                "role":      role,
+                "text":      str(text)[:600],   # cap length
+                "timestamp": datetime.now().strftime("%H:%M:%S"),
+            })
+            self.meta["msg_count"] += 1
 
-        # Rolling window: keep only last max_turns * 2 entries
-        max_entries = self.max_turns * 2
-        if len(self.history) > max_entries:
-            self.history = self.history[-max_entries:]
+            # Rolling window: keep only last max_turns * 2 entries
+            max_entries = self.max_turns * 2
+            if len(self.history) > max_entries:
+                self.history = self.history[-max_entries:]
 
     # ------------------------------------------------------------------ #
     #  BUILD PREFIX                                                        #
@@ -65,18 +68,19 @@ class SessionContext:
         LLM prompt, giving Cipher conversational continuity.
         Returns empty string if no history yet.
         """
-        if not self.history:
-            return ""
+        with self.lock:
+            if not self.history:
+                return ""
 
-        recent = self.history[-self.max_turns * 2:]
-        lines  = ["[CONVERSATION CONTEXT — most recent first]"]
+            recent = self.history[-self.max_turns * 2:]
+            lines  = ["[CONVERSATION CONTEXT — most recent first]"]
 
-        for turn in reversed(recent):
-            tag = "User" if turn["role"] == "user" else "Cipher"
-            lines.append(f"  [{turn['timestamp']}] {tag}: {turn['text'][:200]}")
+            for turn in reversed(recent):
+                tag = "User" if turn["role"] == "user" else "Cipher"
+                lines.append(f"  [{turn['timestamp']}] {tag}: {turn['text'][:200]}")
 
-        lines.append("[END CONTEXT]\n\nCurrent user input: ")
-        return "\n".join(lines)
+            lines.append("[END CONTEXT]\n\nCurrent user input: ")
+            return "\n".join(lines)
 
     # ------------------------------------------------------------------ #
     #  INTROSPECTION                                                       #
@@ -84,24 +88,27 @@ class SessionContext:
 
     def last_user_input(self) -> str | None:
         """Return the most recent user message, if any."""
-        for turn in reversed(self.history):
-            if turn["role"] == "user":
-                return turn["text"]
-        return None
+        with self.lock:
+            for turn in reversed(self.history):
+                if turn["role"] == "user":
+                    return turn["text"]
+            return None
 
     def last_cipher_reply(self) -> str | None:
         """Return the most recent Cipher reply, if any."""
-        for turn in reversed(self.history):
-            if turn["role"] == "cipher":
-                return turn["text"]
-        return None
+        with self.lock:
+            for turn in reversed(self.history):
+                if turn["role"] == "cipher":
+                    return turn["text"]
+            return None
 
     def turn_count(self) -> int:
         return self.meta["msg_count"]
 
     def get_history(self) -> list:
         """Return a copy of the full history list."""
-        return list(self.history)
+        with self.lock:
+            return list(self.history)
 
     # ------------------------------------------------------------------ #
     #  RESET                                                               #
@@ -109,12 +116,13 @@ class SessionContext:
 
     def reset(self):
         """Clear all history (call on new chat session)."""
-        self.history.clear()
-        self.meta = {
-            "started":   datetime.now().isoformat(),
-            "msg_count": 0,
-            "topics":    [],
-        }
+        with self.lock:
+            self.history.clear()
+            self.meta = {
+                "started":   datetime.now().isoformat(),
+                "msg_count": 0,
+                "topics":    [],
+            }
 
     def __repr__(self):
         return (

@@ -1,0 +1,27 @@
+Folder PATH listing for volume New Volume
+Volume serial number is 000000AE 6C40:EAA7
+D:.
+|   comparison_engine.py
+|   framework.py
+|   gemini_integration.py
+|   report_generator.py
+|   structured.txt
+|   tests.py
+|   __init__.py
+|   
++---fixtures
+|       prompts.json
+|       
++---reports
+|       final_report.md
+|       final_report.pdf
+|       summary.json
+|       
+\---__pycache__
+        comparison_engine.cpython-311.pyc
+        framework.cpython-311.pyc
+        gemini_integration.cpython-311.pyc
+        report_generator.cpython-311.pyc
+        tests.cpython-311.pyc
+        __init__.cpython-311.pyc
+        

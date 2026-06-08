@@ -64,6 +64,15 @@ class CipherAgent:
         self.task_log     = []   
         self._verbose     = True
         self.full_control = False
+        
+        from core.memory_sql import MemorySQL
+        from core.memory_vector import MemoryVector
+        self.memory_sql = MemorySQL()
+        self.memory_vector = MemoryVector()
+        
+        from core.orchestrator import SwarmOrchestrator
+        self.orchestrator = SwarmOrchestrator(self.skills)
+        
         self._async_prewarm()
 
     def _async_prewarm(self):
@@ -74,16 +83,16 @@ class CipherAgent:
                 # Pre-warm planner model
                 requests.post(
                     OLLAMA_URL,
-                    json={"model": "deepseek-r1:1.5b", "prompt": "hi", "stream": False},
+                    json={"model": config.PLANNER_MODEL, "prompt": "hi", "stream": False, "keep_alive": -1},
                     timeout=30
                 )
                 # Pre-warm synthesizer model
                 requests.post(
                     OLLAMA_URL,
-                    json={"model": "llama3.2:3b", "prompt": "hi", "stream": False},
+                    json={"model": config.SYNTHESIZER_MODEL, "prompt": "hi", "stream": False, "keep_alive": -1},
                     timeout=30
                 )
-                self._log(">> [Agent] Neural models pre-warmed & cached in RAM.")
+                self._log(">> [Agent] Neural models pre-warmed & cached in VRAM.")
             except Exception as e:
                 pass
         threading.Thread(target=_warm, daemon=True).start()
@@ -91,7 +100,11 @@ class CipherAgent:
     def activate_ghost(self):
         """The Royal Summoning Trigger"""
         # Safely imported inside the function to prevent circular crash
-        from skills.hello import HelloSkill
+        try:
+            from skills.hello import HelloSkill
+        except ModuleNotFoundError:
+            from skills._archived.hello import HelloSkill
+        
         hello = HelloSkill()
         royal_welcome = hello.get_royal_greeting()
         
@@ -125,6 +138,288 @@ class CipherAgent:
             self.full_control = True
             self._log("[AGENT] Full Control Override Activated.")
 
+        # ── Universal Dynamic App Routing ─────────────────────
+        app_match = re.search(r'\bopen\s+(.+?)(?:\s+on\s+(mobile|phone))?$', clean_input)
+        if app_match:
+            app_name = app_match.group(1).strip()
+            is_mobile = bool(app_match.group(2))
+            
+            self._log(f"[AGENT] Hard Override: App Routing detected. App: {app_name}, Mobile: {is_mobile}")
+            
+            result = None
+            if is_mobile:
+                for skill in self.skills.skills:
+                    if skill.__class__.__name__ == "MobileSkill":
+                        result = skill.execute(f"Launch {app_name}")
+                        break
+                if not result:
+                    result = "Sir, Mobile Skill is not available or failed."
+            else:
+                for skill in self.skills.skills:
+                    if skill.__class__.__name__ == "AppsSkill":
+                        result = skill.execute(f"Launch {app_name}")
+                        break
+                if not result:
+                    result = "Sir, Apps Skill is not available or failed."
+                    
+            final_summary = self._synthesize(raw_input, [{"step": 1, "skill": "MobileSkill" if is_mobile else "AppsSkill", "result": result}])
+            self._remember("user", raw_input)
+            self._remember("cipher", final_summary)
+            if self.speaker:
+                self.speaker.speak(final_summary)
+            return final_summary
+
+        # ── Hands-Free System Navigation ─────────────────────
+        nav_match = re.search(r'\b(go back|go home|scroll up|scroll down|desktop)(?:\s+on\s+(mobile|phone))?$', clean_input)
+        if nav_match:
+            action = nav_match.group(1).strip()
+            is_mobile = bool(nav_match.group(2))
+            
+            self._log(f"[AGENT] Hard Override: Navigation detected. Action: {action}, Mobile: {is_mobile}")
+            
+            result = None
+            if is_mobile:
+                for skill in self.skills.skills:
+                    if skill.__class__.__name__ == "MobileSkill":
+                        result = skill.execute(action)
+                        break
+                if not result:
+                    result = "Sir, Mobile Skill is not available or failed."
+            else:
+                for skill in self.skills.skills:
+                    if skill.__class__.__name__ == "NavigationSkill":
+                        result = skill.execute(action)
+                        break
+                if not result:
+                    result = "Sir, Navigation Skill is not available or failed."
+                    
+            final_summary = self._synthesize(raw_input, [{"step": 1, "skill": "MobileSkill" if is_mobile else "NavigationSkill", "result": result}])
+            self._remember("user", raw_input)
+            self._remember("cipher", final_summary)
+            if self.speaker:
+                self.speaker.speak(final_summary)
+            return final_summary
+
+        # ── Live Internet Ingestion Engine ─────────────────────
+        live_triggers = ["weather", "bitcoin", "crypto", "hacker news", "world news", "earthquake"]
+        if any(w in clean_input for w in live_triggers):
+            self._log(f"[AGENT] Hard Override: Live Data detected.")
+            
+            result = None
+            for skill in self.skills.skills:
+                if skill.__class__.__name__ == "LiveDataSkill":
+                    result = skill.execute(raw_input)
+                    break
+            if not result:
+                result = "Sir, Live Data Skill is not available or failed."
+                
+            # Pass to LLM for summarization
+            prompt = f"Summarize this raw live data payload into a single, natural, voice-friendly response for the user. Data: {result}"
+            try:
+                resp = requests.post(
+                    OLLAMA_URL,
+                    json={
+                        "model": "qwen2.5-coder:1.5b", 
+                        "prompt": prompt, 
+                        "stream": False,
+                        "options": {"keep_alive": -1}
+                    },
+                    timeout=30
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    final_summary = data.get("response", "").strip()
+                else:
+                    final_summary = f"Sir, I fetched the data but failed to summarize it. Raw data: {result}"
+            except Exception as e:
+                final_summary = f"Sir, I fetched the data but failed to summarize it. Raw data: {result}"
+                
+            self._remember("user", raw_input)
+            self._remember("cipher", final_summary)
+            if self.speaker:
+                self.speaker.speak(final_summary)
+            return final_summary
+
+        # ── Browser Automation ─────────────────────
+        browser_triggers = ["browse", "scrape website", "search duckduckgo"]
+        if any(w in clean_input for w in browser_triggers):
+            self._log(f"[AGENT] Hard Override: Browser Automation detected.")
+            
+            result = None
+            for skill in self.skills.skills:
+                if skill.__class__.__name__ == "BrowserAutomationSkill":
+                    result = skill.execute(raw_input)
+                    break
+            if not result:
+                result = "Sir, Browser Automation Skill is not available or failed."
+                
+            # Pass to LLM for summarization if it's a scrape
+            if "scrape" in clean_input or "browse" in clean_input:
+                prompt = f"Summarize this raw webpage content into a short, natural, voice-friendly response for the user. Data: {result[:2000]}"
+                try:
+                    resp = requests.post(
+                        OLLAMA_URL,
+                        json={
+                            "model": "qwen2.5-coder:1.5b", 
+                            "prompt": prompt, 
+                            "stream": False,
+                            "options": {"keep_alive": -1}
+                        },
+                        timeout=30
+                    )
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        final_summary = data.get("response", "").strip()
+                    else:
+                        final_summary = f"Sir, I scraped the page but failed to summarize it."
+                except Exception as e:
+                    final_summary = f"Sir, I scraped the page but failed to summarize it."
+            else:
+                final_summary = result
+                
+            self._remember("user", raw_input)
+            self._remember("cipher", final_summary)
+            if self.speaker:
+                self.speaker.speak(final_summary)
+            return final_summary
+
+        # ── OSINT Aggregator ─────────────────────
+        osint_triggers = ["intel", "tech news", "hacker news", "security updates", "latest headlines"]
+        if any(w in clean_input for w in osint_triggers):
+            self._log(f"[AGENT] Hard Override: OSINT Aggregator detected.")
+            
+            result = None
+            for skill in self.skills.skills:
+                if skill.__class__.__name__ == "OSINTAggregatorSkill":
+                    result = skill.execute(raw_input)
+                    break
+            if not result:
+                result = "Sir, OSINT Aggregator Skill is not available or failed."
+                
+            # Pass to LLM for summarization
+            prompt = f"Summarize these raw news headlines into a short, natural, voice-friendly response for the user. Data: {result}"
+            try:
+                resp = requests.post(
+                    OLLAMA_URL,
+                    json={
+                        "model": "qwen2.5-coder:1.5b", 
+                        "prompt": prompt, 
+                        "stream": False,
+                        "options": {"keep_alive": -1}
+                    },
+                    timeout=30
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    final_summary = data.get("response", "").strip()
+                else:
+                    final_summary = f"Sir, I fetched the headlines but failed to summarize them. Raw data: {result}"
+            except Exception as e:
+                final_summary = f"Sir, I fetched the headlines but failed to summarize them. Raw data: {result}"
+                
+            self._remember("user", raw_input)
+            self._remember("cipher", final_summary)
+            if self.speaker:
+                self.speaker.speak(final_summary)
+            return final_summary
+
+        # ── Vision Cortex ─────────────────────
+        vision_triggers = ["look at my screen", "read this error", "what am i looking at", "analyze my screen"]
+        if any(w in clean_input for w in vision_triggers):
+            self._log(f"[AGENT] Hard Override: Vision Cortex detected.")
+            
+            result = None
+            for skill in self.skills.skills:
+                if skill.__class__.__name__ == "ScreenVisionSkill":
+                    result = skill.execute(raw_input)
+                    break
+            if not result:
+                result = "Sir, Vision Skill is not available or failed."
+                
+            # Pass to LLM for summarization
+            prompt = f"Summarize what the vision model sees on the screen into a short, natural, voice-friendly response for the user. Data: {result}"
+            try:
+                resp = requests.post(
+                    OLLAMA_URL,
+                    json={
+                        "model": "qwen2.5-coder:1.5b", 
+                        "prompt": prompt, 
+                        "stream": False,
+                        "options": {"keep_alive": -1}
+                    },
+                    timeout=30
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    final_summary = data.get("response", "").strip()
+                else:
+                    final_summary = f"Sir, I analyzed the screen but failed to summarize it. Raw description: {result}"
+            except Exception as e:
+                final_summary = f"Sir, I analyzed the screen but failed to summarize it. Raw description: {result}"
+                
+            self._remember("user", raw_input)
+            self._remember("cipher", final_summary)
+            if self.speaker:
+                self.speaker.speak(final_summary)
+            return final_summary
+
+        # ── System & Clipboard Awareness ─────────────────────
+        sys_triggers = ["system status", "hardware health", "check battery", "cpu", "ram", "explain clipboard", "fix my clipboard", "what did i copy", "clipboard", "copied"]
+        if any(w in clean_input for w in sys_triggers):
+            self._log(f"[AGENT] Hard Override: System Awareness detected.")
+            
+            result = None
+            for skill in self.skills.skills:
+                if skill.__class__.__name__ == "SystemAwarenessSkill":
+                    result = skill.execute(raw_input)
+                    break
+            if not result:
+                result = "Sir, System Awareness Skill is not available or failed."
+                
+            # If it's a clipboard analyze/fix action, we need to pass it to the LLM to do the work.
+            if result.startswith("Action: ANALYZE_CLIPBOARD"):
+                clipboard_data = result.replace("Action: ANALYZE_CLIPBOARD\nData:", "").strip()
+                prompt = f"The user asked: '{raw_input}'. They are referring to this text on their clipboard:\n\n{clipboard_data}\n\nPlease respond to their request based on this clipboard context."
+                try:
+                    resp = requests.post(
+                        OLLAMA_URL,
+                        json={"model": "qwen2.5-coder:1.5b", "prompt": prompt, "stream": False, "options": {"keep_alive": -1}},
+                        timeout=45
+                    )
+                    if resp.status_code == 200:
+                        final_summary = resp.json().get("response", "").strip()
+                    else:
+                        final_summary = "Sir, I extracted the clipboard but failed to analyze it."
+                except Exception:
+                    final_summary = "Sir, I extracted the clipboard but the local model failed to analyze it."
+            else:
+                final_summary = result
+                
+            self._remember("user", raw_input)
+            self._remember("cipher", final_summary)
+            if self.speaker:
+                self.speaker.speak(final_summary)
+            return final_summary
+
+        # ── Ghost Operator ─────────────────────
+        operator_triggers = ["type this", "open application", "press enter", "take control", "press key", "click at"]
+        if any(w in clean_input for w in operator_triggers):
+            self._log(f"[AGENT] Hard Override: Ghost Operator detected.")
+            
+            result = None
+            for skill in self.skills.skills:
+                if skill.__class__.__name__ == "ComputerOperatorSkill":
+                    result = skill.execute(raw_input)
+                    break
+            if not result:
+                result = "Sir, Computer Operator Skill is not available or failed."
+                
+            self._remember("user", raw_input)
+            self._remember("cipher", result)
+            if self.speaker:
+                self.speaker.speak(result)
+            return result
+
         # ── 1. HARD HEURISTIC BYPASS (FAST-PATH) ───────────────
         # Force-routing for common coding/debug tasks to avoid planner hallucinations
         coding_keywords = ['fix', 'debug', 'error', 'refactor']
@@ -136,10 +431,16 @@ class CipherAgent:
         if is_coding_task and has_file_context:
             self._log("[AGENT] Hard Override: Bypassing planner, routing directly to Coding/Debugger Skill.")
             # Run skills directly with raw input to ensure full path/instruction context
-            result = self.skills.run_skills(raw_input)
+            try:
+                result = self.skills.run_skills(raw_input)
+            except Exception as e:
+                import traceback
+                print(f">> [AGENT] Error running skills in Hard Override:")
+                traceback.print_exc()
+                result = f"Error executing coding skill: {e}"
             
             # Synthesize the result into a professional summary
-            final_summary = self._synthesize(raw_input, [{"step": 1, "skill": "CodingSkill", "result": result}])
+            final_summary = self._synthesize(raw_input, [{"step": 1, "skill": "AutonomousCoderSkill", "result": result}])
             
             self._remember("user", raw_input)
             self._remember("cipher", final_summary)
@@ -154,13 +455,39 @@ class CipherAgent:
             # THE MAGIC WORD THAT STOPS THE LEAK:
             return final_summary
 
+        # Web Search Hard Override
+        search_keywords = ["score", "match", "who is", "what is", "latest", "news", "search"]
+        if any(w in clean_input for w in search_keywords):
+            self._log("[AGENT] Hard Override: Bypassing planner, routing directly to WebScoutSkill.")
+            for s in self.skills.skills:
+                if s.__class__.__name__ == "WebScoutSkill":
+                    result = s.execute(raw_input)
+                    if result:
+                        self._remember("user", raw_input)
+                        self._remember("cipher", result)
+                        self._record_task(raw_input, [{"step": 1, "skill": "WebScoutSkill", "result": result}], result)
+                        return result
+
         # ── 2. HEURISTIC ROUTING ──────────────────────────
         # Forced Planner triggers: "and", "then", "also", or the "fix" command
         is_compound = any(w in raw_input.lower() for w in [" and ", " then ", " also ", " fix "])
         
         # FAST PATH: If it's not a multi-step compound request, ALWAYS try skills first!
         if not is_compound:
-            # We pass clean_input so skills that look for exact phrasing don't break
+            # Smart Routing: Prioritize MobileSkill if requested
+            if any(w in clean_input for w in ["mobile", "phone"]):
+                self._log("[AGENT] Mobile intent detected. Prioritizing MobileSkill.")
+                for s in self.skills.skills:
+                    if s.__class__.__name__ == "MobileSkill":
+                        quick = s.execute(clean_input)
+                        if quick:
+                            self._remember("user",   raw_input)
+                            self._remember("cipher", quick)
+                            self._log(f"[AGENT] Mobile fast-path match: {time.time()-start:.2f}s")
+                            self._record_task(raw_input, [{"step":1,"result":quick}], quick)
+                            return quick
+            
+            # Fallback to normal skill execution
             quick = self.skills.run_skills(clean_input)
             if quick:
                 self._remember("user",   raw_input)
@@ -169,91 +496,37 @@ class CipherAgent:
                 self._record_task(raw_input, [{"step":1,"result":quick}], quick)
                 return quick
 
-        # ── 3. PLANNER PATH ────────────────────
+        # ── 3. SWARM ORCHESTRATOR PATH ────────────────────
         if self.speaker:
-            self.speaker.speak("Analyzing sequence, please hold...")
+            self.speaker.speak("Analyzing multi-step sequence, please hold...")
             
-        # Get Long-Term Memory Context
-        past_context = ""
-        for s in self.skills.skills:
-            if s.__class__.__name__ == "VectorMemorySkill":
-                past_context = s.similarity_search(raw_input)
-                break
+        self._log(f"[AGENT] Routing complex request to Swarm Orchestrator.")
         
+        # We fetch memory context just in case we need it later, but the orchestrator handles the rest.
+        sql_context = self.memory_sql.get_recent_context(limit=3)
+        vector_context = self.memory_vector.query_semantic_memory(raw_input, n_results=2)
+        
+        from core.state_manager import StateManager
+        if sql_context:
+            StateManager.add_memory_retrieval(f"SQL Memory: {sql_context[:100]}...")
+        if vector_context:
+            StateManager.add_memory_retrieval(f"Vector Memory: {', '.join(vector_context)[:100]}...")
+            
+        past_context = ""
+        if sql_context:
+            past_context += f"Recent Timeline Logs:\n{sql_context}\n\n"
+        if vector_context:
+            past_context += f"Semantically Relevant Facts:\n" + "\n".join(vector_context)
+            
         if past_context:
-            self._log(f"[AGENT] Retrieved Memory Context: {past_context[:100]}...")
-
-        plan = self._plan(raw_input, past_context)
-
-        # ── 4. FALLBACK: Local Error Handling ───────────────────────
-        if not plan or len(plan) <= 1:
-            self._log("[AGENT] Planner failed or returned empty.")
-            reply = "Local brain is congested. Please repeat."
-            self._remember("user",   raw_input)
-            self._remember("cipher", reply)
-            self._record_task(raw_input, [], reply)
-            return reply
-
-        # ── 4. EXECUTION: Multi-Step Sequence with Context Injection ──
-        self._log(f"[AGENT] Executing {len(plan)}-step plan...")
-        step_results = []
-        last_result = "" # <--- THE MEMORY BRIDGE
-
-        for step in plan:
-            step_num    = step.get("step", "?")
-            base_instr  = step.get("instruction", "").strip()
-            skill_hint  = step.get("skill", "brain")
+            raw_input_with_context = f"{raw_input}\nContext:\n{past_context}"
+        else:
+            raw_input_with_context = raw_input
             
-            # INJECTION: We append the last result to the current instruction
-            # This tells the Coder what the Vision saw!
-            prev_skill = step_results[-1]["skill"] if step_results else ""
-            if "Vision" in prev_skill and "error" in last_result.lower():
-                instruction = f"{base_instr}. Bug Report context from VisionSkill: {last_result}"
-            else:
-                instruction = f"{base_instr}. Context from previous step: {last_result}" if last_result else base_instr
-
-            self._log(f"  >> Step {step_num} [{skill_hint}]: {instruction[:80]}...")
-
-            # ── PERMISSION GATE (REMOVED: Main thread roadblock resolved) ──
-            # Automated progression active. Code security is now handled 
-            # by the Plagiarism Guardian & UI Patch Diff Card systems.
-
-            # Execute Skill
-            result = self.skills.run_skills(instruction)
-            
-            # ── TRIPLE-CHECK LOOP (Execute, Verify, Repair) ──
-            if result and "Successfully created" in result:
-                files_created = []
-                if ":" in result:
-                    files_str = result.split(":", 1)[1].strip()
-                    files_created = [f.strip() for f in files_str.split(",")]
-                
-                for fpath in files_created:
-                    verify_ok, error_msg = self._verify_file(fpath)
-                    if not verify_ok:
-                        self._log(f"[TRIPLE-CHECK] Verification failed for {fpath}. Auto-repairing...")
-                        for s in self.skills.skills:
-                            if s.__class__.__name__ == "CodingSkill":
-                                fix_result = s.fix_my_code(fpath)
-                                self._log(f"[TRIPLE-CHECK] Repair result: {fix_result}")
-                                result += f" (Auto-repaired {fpath})"
-                                break
-            
-            if not result and self.brain:
-                result = self.brain.think(instruction)
-
-            result = result or "[Task completed]"
-            last_result = str(result)[:500] # Save the findings for the next step
-            
-            step_results.append({
-                "step": step_num, "skill": skill_hint, "result": result
-            })
-            
-        # Synthesize final response
-        final_summary = self._synthesize(raw_input, step_results)
+        final_summary = self.orchestrator.delegate_task(raw_input_with_context)
+        
         self._remember("user", raw_input)
         self._remember("cipher", final_summary)
-        self._record_task(raw_input, step_results, final_summary)
         
         # Save to Long-Term Memory
         for s in self.skills.skills:
@@ -261,6 +534,9 @@ class CipherAgent:
                 s.save_interaction(raw_input, final_summary)
                 break
                 
+        if self.speaker:
+            self.speaker.speak(final_summary)
+            
         return final_summary
 
     # ------------------------------------------------------------------ #
@@ -279,11 +555,12 @@ class CipherAgent:
             resp = requests.post(
                 OLLAMA_URL,
                 json={
-                    "model": "deepseek-r1:1.5b", 
+                    "model": config.PLANNER_MODEL, 
                     "prompt": prompt, 
-                    "stream": False
+                    "stream": False,
+                    "options": {"keep_alive": -1}
                 },
-                timeout=120
+                timeout=30
             )
             if resp.status_code != 200:
                 self._log(f"[AGENT] Ollama HTTP {resp.status_code} Error: Model likely not found or unloaded.")
@@ -292,7 +569,8 @@ class CipherAgent:
                 data = resp.json()
                 raw_text = data.get("response", "")
                 # Strip DeepSeek <think> tags safely
-                clean_text = re.sub(r'<think>.*?</think>', '', raw_text, flags=re.DOTALL).strip()
+                think_end = raw_text.find("</think>")
+                clean_text = raw_text[think_end + 8:].strip() if think_end != -1 else raw_text.strip()
             except Exception as e:
                 self._log(f"[AGENT] Failed to parse Ollama response: {str(e)}")
                 return None
@@ -325,23 +603,25 @@ class CipherAgent:
             resp = requests.post(
                 OLLAMA_URL,
                 json={
-                    "model": "llama3.2:3b", 
+                    "model": config.SYNTHESIZER_MODEL, 
                     "prompt": prompt, 
                     "stream": False,
-                    "keep_alive": "5m"
+                    "options": {"keep_alive": -1}
                 },
-                timeout=120
+                timeout=30
             )
             if resp.status_code != 200:
                 return f"Sir, all steps completed. (Fallback: HTTP {resp.status_code})"
             try:
                 data = resp.json()
                 raw_text = data.get("response", "")
-                clean_text = re.sub(r'<think>.*?</think>', '', raw_text, flags=re.DOTALL).strip()
+                think_end = raw_text.find("</think>")
+                clean_text = raw_text[think_end + 8:].strip() if think_end != -1 else raw_text.strip()
                 return clean_text if clean_text else "Sir, all steps completed."
             except Exception as e:
                 return "Sir, all steps completed. (Synthesis parse error)"
-        except:
+        except Exception as e:
+            self._log(f"[AGENT] Synthesis error: {e}")
             return "Sir, all steps completed successfully."
 
     # ------------------------------------------------------------------ #
@@ -389,6 +669,14 @@ class CipherAgent:
         })
         if len(self.task_log) > 100:
             self.task_log.pop(0)
+            
+        # Log to Hybrid Memory
+        executed_skill = steps[0].get("skill", "unknown") if steps else "unknown"
+        try:
+            self.memory_sql.add_log(inp, executed_skill, output)
+            self.memory_vector.remember_fact(f"User: {inp}\nCipher: {output}", {"skill": executed_skill})
+        except Exception as e:
+            self._log(f"[AGENT] Failed to log to hybrid memory: {e}")
 
     def get_task_log(self) -> list:
         return list(self.task_log)

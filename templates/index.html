@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CIPHER OS // COGNITIVE INTEGRITY SYSTEM</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Rajdhani:wght@300;400;500;600;700&family=Orbitron:wght@400;500;700;900&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+
+<body>
+
+    <!-- Ambient background layers -->
+    <div class="bg-grid"></div>
+    <div class="bg-vignette"></div>
+    <canvas id="bg-canvas"></canvas>
+
+    <!-- Scanline overlay -->
+    <div class="scanlines"></div>
+
+    <!-- ══ HEADER ══════════════════════════════════════════════ -->
+    <header class="hud-header">
+        <div class="header-left">
+            <div class="cipher-logo">
+                <div class="logo-orb" id="logo-orb">
+                    <div class="orb-ring r1"></div>
+                    <div class="orb-ring r2"></div>
+                    <div class="orb-core">C</div>
+                </div>
+                <div class="logo-text">
+                    <span class="logo-main">CIPHER OS</span>
+                    <span class="logo-sub">// COGNITIVE INTEGRITY SYSTEM v3.0</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="header-center">
+            <div class="hud-ticker" id="hud-ticker">
+                <span>MULTI-AGENT NEURAL OS</span>
+                <span class="tick-sep">◈</span>
+                <span>45+ AUTONOMOUS SKILL MODULES</span>
+                <span class="tick-sep">◈</span>
+                <span>DEEPSEEK-R1 LOCAL ENGINE</span>
+                <span class="tick-sep">◈</span>
+                <span>16GB UNCAPPED</span>
+                <span class="tick-sep">◈</span>
+                <span id="tick-time">--:--:--</span>
+            </div>
+        </div>
+
+        <div class="header-right">
+            <div class="sleep-worker-badge" id="sleep-worker-badge">
+                <i class="fa fa-circle-notch fa-spin"></i> SLEEP-WORKER
+            </div>
+            <div class="status-chip" id="system-status-chip">
+                <div class="chip-dot" id="chip-dot"></div>
+                <span id="system-status-text">ONLINE</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- ══ MAIN GRID ════════════════════════════════════════════ -->
+    <main class="command-grid">
+
+        <!-- ── ROW 1: Three top panels ──────────────────────────── -->
+
+        <!-- Panel 01: Hardware Telemetry -->
+        <section class="panel panel-telemetry" id="panel-telemetry">
+            <div class="panel-chrome">
+                <div class="chrome-corner tl"></div>
+                <div class="chrome-corner tr"></div>
+                <div class="chrome-corner bl"></div>
+                <div class="chrome-corner br"></div>
+            </div>
+            <div class="panel-header">
+                <div class="panel-label">
+                    <span class="panel-num">01</span>
+                    <span class="panel-title">Hardware Telemetry</span>
+                </div>
+                <div class="panel-tag">LIVE</div>
+            </div>
+            <div class="panel-body">
+
+                <div class="metric-block">
+                    <div class="metric-row">
+                        <span class="metric-name"><i class="fa fa-microchip"></i> CPU LOAD</span>
+                        <span class="metric-val" id="cpu-val">0%</span>
+                    </div>
+                    <div class="arc-bar-wrap">
+                        <div class="arc-bar" id="cpu-bar">
+                            <div class="arc-fill" id="cpu-fill" style="width:0%"></div>
+                            <div class="arc-glow" id="cpu-glow" style="left:0%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="metric-block">
+                    <div class="metric-row">
+                        <span class="metric-name"><i class="fa fa-memory"></i> RAM ALLOCATION</span>
+                        <span class="metric-val" id="ram-val">0%</span>
+                    </div>
+                    <div class="arc-bar-wrap">
+                        <div class="arc-bar" id="ram-bar">
+                            <div class="arc-fill" id="ram-fill" style="width:0%"></div>
+                            <div class="arc-glow" id="ram-glow" style="left:0%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="telemetry-stats">
+                    <div class="tstat">
+                        <span class="tstat-label">UPTIME</span>
+                        <span class="tstat-val" id="uptime-val">--:--:--</span>
+                    </div>
+                    <div class="tstat">
+                        <span class="tstat-label">SKILLS</span>
+                        <span class="tstat-val">45+</span>
+                    </div>
+                    <div class="tstat">
+                        <span class="tstat-label">ENGINE</span>
+                        <span class="tstat-val" style="color:var(--green)">LOCAL</span>
+                    </div>
+                </div>
+
+                <div class="worker-grid-label" style="font-size: 11px; font-weight: 600; color: #8a9fc4; margin-top: 15px; margin-bottom: 8px; font-family: 'Space Mono', monospace; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 12px;">// ISOLATED EXECUTION LANES</div>
+                <div class="worker-grid" id="worker-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;">
+                    <div class="worker-lane" id="lane-vision" style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 4px; padding: 6px 10px; display: flex; align-items: center; justify-content: space-between;">
+                        <span style="font-family: 'Space Mono', monospace; font-size: 11px; color: #d4dde8;">VISION</span>
+                        <span class="lane-status" id="status-vision" style="font-size: 9px; font-weight: 700; color: #ff9d00; background: rgba(255,157,0,0.1); padding: 2px 6px; border-radius: 3px; font-family: 'Space Mono', monospace; transition: all 0.3s ease;">OFFLINE</span>
+                    </div>
+                    <div class="worker-lane" id="lane-coding" style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 4px; padding: 6px 10px; display: flex; align-items: center; justify-content: space-between;">
+                        <span style="font-family: 'Space Mono', monospace; font-size: 11px; color: #d4dde8;">CODING</span>
+                        <span class="lane-status" id="status-coding" style="font-size: 9px; font-weight: 700; color: #ff9d00; background: rgba(255,157,0,0.1); padding: 2px 6px; border-radius: 3px; font-family: 'Space Mono', monospace; transition: all 0.3s ease;">OFFLINE</span>
+                    </div>
+                    <div class="worker-lane" id="lane-automation" style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 4px; padding: 6px 10px; display: flex; align-items: center; justify-content: space-between;">
+                        <span style="font-family: 'Space Mono', monospace; font-size: 11px; color: #d4dde8;">AUTOMATION</span>
+                        <span class="lane-status" id="status-automation" style="font-size: 9px; font-weight: 700; color: #ff9d00; background: rgba(255,157,0,0.1); padding: 2px 6px; border-radius: 3px; font-family: 'Space Mono', monospace; transition: all 0.3s ease;">OFFLINE</span>
+                    </div>
+                    <div class="worker-lane" id="lane-swarm" style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 4px; padding: 6px 10px; display: flex; align-items: center; justify-content: space-between;">
+                        <span style="font-family: 'Space Mono', monospace; font-size: 11px; color: #d4dde8;">SWARM</span>
+                        <span class="lane-status" id="status-swarm" style="font-size: 9px; font-weight: 700; color: #ff9d00; background: rgba(255,157,0,0.1); padding: 2px 6px; border-radius: 3px; font-family: 'Space Mono', monospace; transition: all 0.3s ease;">OFFLINE</span>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- Panel 02: Active Cognitive Agent -->
+        <section class="panel panel-agent" id="panel-agent">
+            <div class="panel-chrome">
+                <div class="chrome-corner tl"></div>
+                <div class="chrome-corner tr"></div>
+                <div class="chrome-corner bl"></div>
+                <div class="chrome-corner br"></div>
+            </div>
+            <div class="panel-header">
+                <div class="panel-label">
+                    <span class="panel-num">02</span>
+                    <span class="panel-title">Active Cognitive Agent</span>
+                </div>
+                <div class="panel-tag" id="agent-state-tag">IDLE</div>
+            </div>
+            <div class="panel-body agent-body">
+
+                <div class="agent-visual">
+                    <div class="agent-orb-outer" id="agent-orb-outer">
+                        <div class="agent-orb-ring a1"></div>
+                        <div class="agent-orb-ring a2"></div>
+                        <div class="agent-orb-ring a3"></div>
+                        <div class="agent-orb-center" id="agent-orb-center">
+                            <i class="fa fa-brain" id="agent-icon"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="agent-info">
+                    <div class="agent-name" id="agent-name">IDLE</div>
+                    <div class="agent-sub" id="agent-sub">Awaiting command input</div>
+                </div>
+
+                <div class="agent-pipeline">
+                    <div class="pipe-step" id="pipe-listen" title="Listener">
+                        <i class="fa fa-microphone"></i><span>LISTEN</span>
+                    </div>
+                    <div class="pipe-arrow">→</div>
+                    <div class="pipe-step" id="pipe-think" title="Thinker">
+                        <i class="fa fa-brain"></i><span>THINK</span>
+                    </div>
+                    <div class="pipe-arrow">→</div>
+                    <div class="pipe-step" id="pipe-skill" title="Skill">
+                        <i class="fa fa-bolt"></i><span>SKILL</span>
+                    </div>
+                    <div class="pipe-arrow">→</div>
+                    <div class="pipe-step" id="pipe-speak" title="Speaker">
+                        <i class="fa fa-volume-high"></i><span>SPEAK</span>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- Panel 03: Neural Feed -->
+        <section class="panel panel-feed" id="panel-feed">
+            <div class="panel-chrome">
+                <div class="chrome-corner tl"></div>
+                <div class="chrome-corner tr"></div>
+                <div class="chrome-corner bl"></div>
+                <div class="chrome-corner br"></div>
+            </div>
+            <div class="panel-header">
+                <div class="panel-label">
+                    <span class="panel-num">03</span>
+                    <span class="panel-title">Neural Feed — Microphone</span>
+                </div>
+                <div class="panel-tag tag-green" id="mic-tag">STANDBY</div>
+            </div>
+            <div class="panel-body">
+
+                <div class="voice-visualizer" id="voice-viz">
+                    <div class="vbar" style="--d:0"></div>
+                    <div class="vbar" style="--d:1"></div>
+                    <div class="vbar" style="--d:2"></div>
+                    <div class="vbar" style="--d:3"></div>
+                    <div class="vbar" style="--d:4"></div>
+                    <div class="vbar" style="--d:5"></div>
+                    <div class="vbar" style="--d:6"></div>
+                    <div class="vbar" style="--d:7"></div>
+                    <div class="vbar" style="--d:8"></div>
+                    <div class="vbar" style="--d:9"></div>
+                    <div class="vbar" style="--d:10"></div>
+                    <div class="vbar" style="--d:11"></div>
+                </div>
+
+                <div class="transcript-wrap">
+                    <div class="transcript-label">// LAST CAPTURED COMMAND</div>
+                    <div class="transcript-text" id="transcript-text">No active neural capture...</div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- ── ROW 2: Console + Memory ──────────────────────────── -->
+
+        <!-- Panel 04: Reflection Console -->
+        <section class="panel panel-console" id="panel-console">
+            <div class="panel-chrome">
+                <div class="chrome-corner tl"></div>
+                <div class="chrome-corner tr"></div>
+                <div class="chrome-corner bl"></div>
+                <div class="chrome-corner br"></div>
+            </div>
+            <div class="panel-header">
+                <div class="panel-label">
+                    <span class="panel-num">04</span>
+                    <span class="panel-title">Reflection &amp; Traceback Console</span>
+                </div>
+                <div class="panel-header-right">
+                    <div class="error-badge" id="error-badge">
+                        <i class="fa fa-triangle-exclamation"></i> ERROR DETECTED
+                    </div>
+                    <div class="panel-tag tag-pink">STDERR</div>
+                </div>
+            </div>
+            <div class="panel-body console-body">
+                <div class="console-topbar">
+                    <span class="console-dot cd-red"></span>
+                    <span class="console-dot cd-amber"></span>
+                    <span class="console-dot cd-green"></span>
+                    <span class="console-fname">cipher_reflection.log</span>
+                </div>
+                <div class="console-output" id="console-output">SYSTEM READY. NO ERRORS DETECTED.</div>
+            </div>
+        </section>
+
+        <!-- Panel 05: Memory Retrievals -->
+        <section class="panel panel-memory" id="panel-memory">
+            <div class="panel-chrome">
+                <div class="chrome-corner tl"></div>
+                <div class="chrome-corner tr"></div>
+                <div class="chrome-corner bl"></div>
+                <div class="chrome-corner br"></div>
+            </div>
+            <div class="panel-header">
+                <div class="panel-label">
+                    <span class="panel-num">05</span>
+                    <span class="panel-title">Memory Retrievals</span>
+                </div>
+                <div class="panel-tag tag-purple">RAG</div>
+            </div>
+            <div class="panel-body">
+                <div class="memory-list" id="memory-list">
+                    <div class="memory-item">
+                        <div class="mem-icon"><i class="fa fa-database"></i></div>
+                        <div class="mem-text">Awaiting cognitive memory recall...</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- ══ FOOTER ═══════════════════════════════════════════════ -->
+    <footer class="hud-footer">
+        <span class="footer-item">CIPHER OS v3.0</span>
+        <span class="footer-sep">◈</span>
+        <span class="footer-item">45+ SKILLS LOADED</span>
+        <span class="footer-sep">◈</span>
+        <span class="footer-item">DEEPSEEK-R1:1.5B · OLLAMA</span>
+        <span class="footer-sep">◈</span>
+        <span class="footer-item">BUILT BY MOHAMAD SHAFEEZ</span>
+        <span class="footer-sep">◈</span>
+        <span class="footer-item" id="footer-time">--:--:-- UTC+5:30</span>
+    </footer>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+
+</html>

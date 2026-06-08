@@ -72,6 +72,14 @@ SKILL_REGISTRY = [
     ("skills.skill_assimilator",   "SkillAssimilatorSkill"),
     ("skills.deep_research",       "DeepResearchSkill"),
     ("skills.ghost_hand",          "GhostHandSkill"),
+    ("skills.navigation",          "NavigationSkill"),
+    ("skills.live_data",           "LiveDataSkill"),
+    ("skills.browser_automation",  "BrowserAutomationSkill"),
+    ("skills.osint_aggregator",    "OSINTAggregatorSkill"),
+    ("skills.screen_vision",       "ScreenVisionSkill"),
+    ("skills.codebase_indexer",    "CodebaseIndexerSkill"),
+    ("skills.system_awareness",    "SystemAwarenessSkill"),
+    ("skills.computer_operator",    "ComputerOperatorSkill"),
 ]
 
 
