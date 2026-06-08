@@ -75,15 +75,18 @@ graph TD
         EventBus -.-> HUD
     end
 
-    %% IPC Bridge
-    TaskQueue == "JSON Payload (IPC)" ==> IPC Bridge
+    %% Explicitly define the IPC Bridge Node to prevent parser compilation errors
+    IPC_Bridge[IPC Bridge]
+
+    %% IPC Bridge Links
+    TaskQueue == "JSON Payload (IPC)" ==> IPC_Bridge
 
     %% Isolated Sandbox Layer
     subgraph Isolated Worker Sandboxes [IDLE_PRIORITY_CLASS]
-        IPC Bridge --> W1[Swarm Worker]
-        IPC Bridge --> W2[Vision Worker]
-        IPC Bridge --> W3[Coding Worker]
-        IPC Bridge --> W4[System Worker]
+        IPC_Bridge --> W1[Swarm Worker]
+        IPC_Bridge --> W2[Vision Worker]
+        IPC_Bridge --> W3[Coding Worker]
+        IPC_Bridge --> W4[System Worker]
         
         W1 & W2 & W3 & W4 --> Ollama15[(Ollama: 11435<br>Heavy Compute Queue)]
     end
@@ -92,8 +95,8 @@ graph TD
     Watchdog((Kernel Watchdog)) -. "Monitors Heartbeats" .-> W1 & W2 & W3 & W4
     Watchdog -- "SIGKILL (Deadlock)" --> W1
     
-    W1 & W2 & W3 & W4 -- "Results / Errors" --> IPC Bridge
-    IPC Bridge == "State Sync" ==> EventBus
+    W1 & W2 & W3 & W4 -- "Results / Errors" --> IPC_Bridge
+    IPC_Bridge == "State Sync" ==> EventBus
     
     EventBus --> DB[(SQLite WAL<br>Cognitive Memory)]
 
