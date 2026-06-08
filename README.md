@@ -107,6 +107,7 @@ graph TD
     %% Direct style overrides for the Subgraphs to avoid space-parsing bugs
     style Main_OS_Runtime fill:#0b0f19,stroke:#00f0ff,stroke-width:2px,color:#d4dde8;
     style Isolated_Worker_Sandboxes fill:#1a0b1c,stroke:#ff007f,stroke-width:2px,color:#d4dde8;
+```
 
 ## 🛡️ Core Engineering Pillars
 
