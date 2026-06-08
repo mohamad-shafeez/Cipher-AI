@@ -101,9 +101,6 @@ graph TD
     class Main OS Runtime,FastPath,TaskQueue process;
     class W1,W2,W3,W4,Isolated Worker Sandboxes isolation;
     class Ollama14,Ollama15,DB,HUD data;
-```
-
----
 
 ## 🛡️ Core Engineering Pillars
 
