@@ -57,13 +57,8 @@ Cipher OS is designed as a centralized background runtime, separating high-prior
 
 ```mermaid
 graph TD
-    %% Styling
-    classDef process fill:#0b0f19,stroke:#00f0ff,stroke-width:2px,color:#d4dde8;
-    classDef isolation fill:#1a0b1c,stroke:#ff007f,stroke-width:2px,color:#d4dde8;
-    classDef data fill:#061b1c,stroke:#39ff14,stroke-width:2px,color:#d4dde8;
-
     %% Main Process Layer
-    subgraph Main OS Runtime [HIGH_PRIORITY_CLASS]
+    subgraph Main_OS_Runtime [HIGH_PRIORITY_CLASS]
         Input((Mic / Hotkeys)) --> Dispatcher{Central Orchestrator}
         Dispatcher -- "CTRL+SPACE" --> FastPath[LiveTalk Engine]
         FastPath --> Ollama14[(Ollama: 11434<br>Fast VAD Queue)]
@@ -82,7 +77,7 @@ graph TD
     TaskQueue == "JSON Payload (IPC)" ==> IPC_Bridge
 
     %% Isolated Sandbox Layer
-    subgraph Isolated Worker Sandboxes [IDLE_PRIORITY_CLASS]
+    subgraph Isolated_Worker_Sandboxes [IDLE_PRIORITY_CLASS]
         IPC_Bridge --> W1[Swarm Worker]
         IPC_Bridge --> W2[Vision Worker]
         IPC_Bridge --> W3[Coding Worker]
@@ -100,10 +95,18 @@ graph TD
     
     EventBus --> DB[(SQLite WAL<br>Cognitive Memory)]
 
-    %% Apply Styles
-    class Main OS Runtime,FastPath,TaskQueue process;
-    class W1,W2,W3,W4,Isolated Worker Sandboxes isolation;
+    %% Styling with explicit class definitions for Nodes
+    classDef process fill:#0b0f19,stroke:#00f0ff,stroke-width:2px,color:#d4dde8;
+    classDef isolation fill:#1a0b1c,stroke:#ff007f,stroke-width:2px,color:#d4dde8;
+    classDef data fill:#061b1c,stroke:#39ff14,stroke-width:2px,color:#d4dde8;
+
+    class FastPath,TaskQueue process;
+    class W1,W2,W3,W4 isolation;
     class Ollama14,Ollama15,DB,HUD data;
+
+    %% Direct style overrides for the Subgraphs to avoid space-parsing bugs
+    style Main_OS_Runtime fill:#0b0f19,stroke:#00f0ff,stroke-width:2px,color:#d4dde8;
+    style Isolated_Worker_Sandboxes fill:#1a0b1c,stroke:#ff007f,stroke-width:2px,color:#d4dde8;
 
 ## 🛡️ Core Engineering Pillars
 
