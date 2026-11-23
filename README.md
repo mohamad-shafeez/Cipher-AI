@@ -1,10 +1,12 @@
-# ⚡ Cipher OS // Local-First Concurrent AI Runtime
+# Cipher OS - Local-First Concurrent AI Runtime
 
 ![Status](https://img.shields.io/badge/Status-Active_Development-2ea44f?style=for-the-badge)
 ![Architecture](https://img.shields.io/badge/Architecture-Event--Driven_Multiprocessing-39ff14?style=for-the-badge)
 ![Engine](https://img.shields.io/badge/Engine-Local_Inference_(Ollama)-ff007f?style=for-the-badge)
+[![CI](https://github.com/mohamad-shafeez/Cipher-AI/actions/workflows/ci.yml/badge.svg)](https://github.com/mohamad-shafeez/Cipher-AI/actions/workflows/ci.yml)
+![Tests](https://img.shields.io/badge/tests-6%20passed-success?style=for-the-badge)
 
-Cipher OS is an experimental, fault-tolerant AI background daemon and runtime for Windows. Moving beyond traditional "chatbot wrappers," Cipher implements a centralized, OS-level AI runtime. 
+Cipher OS is an experimental, local-first AI runtime for Windows. Moving beyond traditional "chatbot wrappers," it explores a centralized background runtime built around process isolation, IPC queues, and watchdog-based recovery. It is not a production-hardened operating system. 
 
 It utilizes an event-driven architecture, strict process isolation, and OS-level CPU scheduling to manage heavy, multi-agent LLM workloads locally without ever blocking the primary user interface or real-time audio streams.
 
@@ -40,9 +42,9 @@ It utilizes an event-driven architecture, strict process isolation, and OS-level
 - Temporal scheduling
 - Autonomous problem solving
 - Guardrails and safety filters
-- Agent ecosystem (150+ personas across 13 domains)
-- Communication automation (WhatsApp, Gmail)
-- Plugin architecture with dynamic loading
+- Agent ecosystem (176 personas across 13 domains)
+- Browser deep-link helpers for WhatsApp Web and Gmail
+- Dynamic loading of generated skill modules
 - Mobile bridge companion protocol
 - LAN swarm discovery and distributed coordination
 - System tray daemon integration
@@ -122,10 +124,11 @@ All automated tasks (e.g. Swarm workflows, vision comprehension, filesystem acti
 ### 3. "Shared-Nothing" IPC Messaging Layer
 Because Windows utilizes the `spawn` method for multiprocessing (unlike POSIX `fork`), child processes share no global memory address space with the parent process. Cipher utilizes serialized JSON IPC communication channels over standard `multiprocessing.Queue()` lanes, bridging child-state telemetry, execution logs, and capability responses back to the parent `EventBus` without memory collision.
 
-### 4. Flatline Watchdog with Respawn Cooldown
-* **Active Heartbeats:** Child processes write timestamp pulses to the supervisor every 3 seconds.
-* **Deadlock Recovery:** If a process fails to update its heartbeat for more than 45 seconds, the supervisor executes a native OS force kill (`taskkill /F /PID` on Windows or `SIGKILL` on Linux) to reclaim resources.
-* **Respawn Cooldown Gate:** If a process crashes on boot (e.g. due to missing model assets or closed server ports), a 5-second cooldown is enforced to prevent resource-exhausting fork loops and process storms.
+### 4. Watchdog and Worker Supervisor Recovery
+Two separate mechanisms handle stale work:
+* **Thread heartbeat monitor (`core/watchdog.py`):** Registered threads pulse every 10 seconds. A thread silent for more than 45 seconds triggers an optional restart callback.
+* **Process supervisor (`core/worker_manager.py`):** Worker subprocesses emit heartbeats every 3 seconds. A process silent for more than 45 seconds is force-killed (`taskkill /F /PID` on Windows or `SIGKILL` on Linux).
+* **Respawn cooldown gate:** If a worker crashes on boot (for example, due to missing model assets or closed server ports), a 5-second cooldown limits restart storms.
 
 ### 5. Aggressive Memory Consolidation & VRAM Eviction
 Local inference is highly volatile. Cipher prevents VRAM/RAM exhaustion through aggressive cleanup routines:
@@ -136,11 +139,11 @@ Local inference is highly volatile. Cipher prevents VRAM/RAM exhaustion through 
 * **SQLite WAL Database:** To allow multiple isolated subprocesses to read and write database episodes simultaneously without throwing `sqlite3.OperationalError: database is locked`, the cognitive layer implements Write-Ahead Logging (`PRAGMA journal_mode=WAL`).
 * **Nuclear Shutdown Sequence:** The entrypoint binds `signal.SIGINT` (Ctrl+C). When caught, it intercepts the keyboard interrupt, disables low-level Windows keyboard hooks, terminates the active process trees, and exits immediately via C-level `os._exit(0)` to prevent zombie memory leaks.
 
-### 7. Cross-Project Browser Diagnostics & Headless Instrumentation
-Cipher extends its runtime awareness outside its own repository boundaries through decoupled headless browser probing. When targeting external web applications, an isolated diagnostics worker leverages automated instrumentation (via headless browser APIs) to monitor the client-side environment in real time. It intercepts uncaught console exceptions, network failures, and DOM rendering crashes, writing local diagnostic artifacts synchronously without injecting overhead into the target code.
+### 7. Cross-Project Browser Diagnostics (private build only — not included)
+The private build contains an experimental headless-browser diagnostics worker for external web applications. It is not present in this public repository, and no public API or module in this tree implements it.
 
-### 8. Multimodal Workflow Augmentation & Human-in-the-Loop QA
-The runtime integrates a collaborative human-in-the-loop validation layer for high-throughput visual quality assurance and annotation. Using local multimodal vision pipelines, Cipher parses display layouts and streaming frames to identify visual regression anomalies, object morphing metrics, or structural interface inconsistencies. Instead of executing unvalidated mutations, it acts as an analytical co-pilot, surfacing structured observations to the telemetry HUD for explicit developer approval.
+### 8. Multimodal Workflow Augmentation (private build only — not included)
+The private build also contains an experimental human-in-the-loop visual QA layer. It is not present in this public repository; the public tree includes the vision worker and HUD telemetry, not the private multimodal analyzer.
 
 ---
 
@@ -222,19 +225,17 @@ User: "How do I fix the syntax error in my server.py?"
 
 ---
 
-## 🧪 Fault Tolerance Validation
+## 🧪 Failure Handling Coverage
 
-Cipher has been stress-tested against:
+The public tree implements recovery paths for:
 
-- worker deadlocks
-- forced process termination
-- Ollama inference hangs
+- stale thread heartbeats (restart callback)
+- stale worker-process heartbeats (force kill and respawn)
+- Ollama inference timeouts
 - interrupted audio streams
-- concurrent IPC flooding
-- Ctrl+C runtime teardown
-- stale heartbeat recovery
+- Ctrl+C teardown of worker process trees
 
-Dead workers are automatically detected, terminated, and respawned without affecting the primary runtime loop.
+The repository includes targeted contract tests for the thread watchdog callback, memory tiers, dynamic skill loading, and credential handling. It does **not** include a load or stress-test suite, so the claims above describe implemented mechanisms rather than measured production resilience.
 
 ---
 
@@ -263,17 +264,19 @@ During development, Cipher required solving several low-level runtime challenges
 ---
 ## 🚀 Capabilities & Advanced Subsystems
 
-* **Cross-Project Test Runner (`diagnostics_worker`):** Programmatically mounts external project paths, runs localized boot scripts, and attaches telemetry probes to evaluate runtime health.
-* **Headless Browser Probe (`browser_probe`):** Headless instrumentation engine capturing console errors, failed network requests, and active application state changes.
-* **Assisted Repair Gateway (`repair_worker`):** Reads generated markdown error logs, aggregates contextual code repairs, and serves a structured `[Y/N]` modification gate to the user.
-* **Multimodal QA Assistent (`multimodal_analyzer`):** Multi-modal evaluation engine that watches display inputs via local vision models to perform frame-by-frame anomaly detection.
-* **Central Patch Database (`project_fixes/`):** A persistent local ledger auditing historical errors, screenshots, and structural corrections across all monitored developer workspaces.
+The following are private-build designs and are **not included** in this public repository:
+
+* **Cross-Project Test Runner (`diagnostics_worker`):** private experimental worker for external project paths.
+* **Headless Browser Probe (`browser_probe`):** private experimental browser instrumentation.
+* **Assisted Repair Gateway (`repair_worker`):** private experimental repair workflow.
+* **Multimodal QA Assistant (`multimodal_analyzer`):** private experimental visual QA worker.
+* **Central Patch Database (`project_fixes/`):** private local ledger, not shipped here.
 
 ---
 
 ## 🌐 Agent Ecosystem
 
-Cipher ships with a library of **150+ AI agent personas** across **13 industry domains**, each defined with specialized system prompts, tool permissions, and behavioral constraints:
+Cipher ships with a library of **176 AI agent personas** across **13 industry domains**, each defined with a specialized system prompt and behavioral guidance:
 
 > **Domains:** Academic · Design · Engineering · Finance · Game Development · Marketing · Paid Media · Product · Project Management · Sales · Spatial Computing · Specialized (Legal, Medical, Cybersecurity) · Support
 
@@ -283,20 +286,20 @@ The `agent_router.py` dynamically selects the optimal persona based on task clas
 
 ## 📱 Communication & Automation
 
-Real-world communication automation via browser instrumentation:
+Communication helpers open browser deep links rather than driving the web apps directly:
 
-| Channel | Capabilities |
+| Channel | Implemented behavior |
 |---------|-------------|
-| **WhatsApp** | Send messages, initiate voice/video calls, contact lookup |
-| **Gmail** | Compose emails, open inbox, draft management |
+| **WhatsApp** | Open a chat with a prefilled message; calls are not automated |
+| **Gmail** | Open the inbox or a prefilled compose window |
 
-Commands are triggered through natural language and routed via the orchestrator's intent parser.
+Commands are triggered through natural language and routed via the orchestrator's intent parser. The helper does not automate sending, calling, or inbox management beyond opening the relevant web page.
 
 ---
 
-## 🔌 Plugin Architecture & Extensibility
+## 🔌 Dynamic Skill Loading
 
-Cipher implements a **dynamic plugin system** (`core/plugin_manager.py`) supporting discovery, lifecycle management, dependency-aware initialization, and hot-reload.
+Cipher implements a narrow **dynamic skill loader** (`core/plugin_manager.py`). It compiles LLM-generated Python into `skills/dynamic_<name>_skill.py`, imports the module in-process, and resolves a class entrypoint. It does **not** implement general plugin discovery, lifecycle management, dependency-aware initialization, or hot-reload of existing modules.
 
 **Additional Core Modules:**
 
@@ -332,7 +335,7 @@ Skills are managed by the `SkillsManager` with dynamic registration and invocati
 
 ## 🧪 Evaluation & Benchmarking Framework
 
-Cipher includes a production-ready **evaluation harness** for measuring and comparing AI model performance across multiple dimensions:
+Cipher includes an **offline evaluation harness** for measuring and comparing AI model performance across multiple dimensions. It is a local experiment runner, not a production evaluation service:
 
 ### Evaluation Stages
 
@@ -392,12 +395,13 @@ Generated: 2026-06-04T18:29:35
 
 ### Graceful Degradation
 
-The evaluation framework includes **automatic fallback** when local Ollama is unavailable:
+The evaluation framework includes a **mock fallback** when local Ollama is unavailable:
 
-- Generates mock responses to maintain test continuity
-- Records inference latency even without backend
-- Produces complete reports for CI/CD pipelines
-- Zero failures due to missing model backend
+- Generates mock responses to keep report generation running
+- Records latency for the fallback path
+- Produces a complete report for smoke-testing the harness
+
+Mock responses are for harness continuity only. They are not evidence of model quality or performance, and the harness is not a substitute for a real evaluation run against a live model.
 
 ---
 
@@ -647,14 +651,14 @@ print(report)
 | Subsystem Worker | Processing Layer | Data Channel | Primary Core Responsibility |
 | :--- | :--- | :--- | :--- |
 | **LiveTalk Engine** | Main OS Process | High-Priority Thread | Real-time audio VAD streams and direct system execution shortcuts |
-| **Diagnostics Worker** | Isolated Subprocess | Serialized IPC Queue | External path verification, browser telemetry hooks, and log aggregation |
-| **Multimodal Analyzer** | Isolated Subprocess | Shared memory frames | Frame analysis, visual QA profiling, and anomaly detection |
+| **Diagnostics Worker** | Private build only | — | Not included in this public repository |
+| **Multimodal Analyzer** | Private build only | — | Not included in this public repository |
 | **Agent Swarm Worker** | Isolated Subprocess | JSON IPC Lanes | Multi-node problem solving, code analysis, and local feedback loops |
 | **Safety Filter** | Inference Pipeline | Synchronous | Prompt validation, response filtering, output constraints |
 | **Conversation Manager** | Main Process | SQLite | Session tracking, message history, context injection |
 | **Function Calling** | LLM Response Parser | JSON Parsing | Tool schema validation, parameter extraction, result handling |
-| **Communication Module** | Main Process | Browser Automation | WhatsApp messaging, Gmail compose, contact management |
-| **Plugin Manager** | Main Process | Dynamic Import | Plugin discovery, lifecycle management, hot-reload |
+| **Communication Module** | Main Process | Browser deep links | Open WhatsApp chats and Gmail compose pages |
+| **Plugin Manager** | Main Process | Dynamic import | Load a generated skill module in-process |
 | **Agent Manager** | Main Process | IPC Channels | Multi-agent spawn, monitoring, and teardown |
 | **Mobile Bridge** | Main Process | WebSocket | Cross-device companion app communication |
 | **System Tray** | Main Process | OS API | Background daemon status, quick actions, notifications |
@@ -697,5 +701,11 @@ python main.py
 *Once running, access the Telemetry HUD at `http://localhost:5000` to view real-time process monitoring.*
 
 ***
+
+## License
+
+No repository-wide license is declared yet. The runtime code is original work, but the 176-persona library contains prompt text whose upstream provenance needs review before a repository-wide license is applied. Do not redistribute the persona library until that review is complete.
+
+---
 
 *Architected and Engineered by Mohamad Shafeez (2026).*

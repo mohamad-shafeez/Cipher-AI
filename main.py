@@ -399,18 +399,23 @@ def main():
     # 📱 IGNITE THE MOBILE MESH
     # ==========================================
     from core.mobile_bridge import MobileBridge
-    TELEGRAM_BOT_TOKEN = "8734486592:AAHdLo_oixaEVWAqrfRxJ9jj39Aj___Cb-M" 
-    TELEGRAM_CHAT_ID = "6748077713"
-    
-    bridge = MobileBridge(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID)
-    
-    # Subscribe the bridge to OS events so it texts you when things finish
-    bus.subscribe("swarm.consensus.reached", bridge.handle_system_event)
-    bus.subscribe("graph.step.success", bridge.handle_system_event)
-    bus.subscribe("os.system.idle", bridge.handle_system_event)
-    
-    # Boot the polling daemon
-    bridge.start()
+
+    # Credentials are supplied through the environment, never committed.
+    TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
+    TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
+
+    if TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID:
+        bridge = MobileBridge(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID)
+
+        # Subscribe the bridge to OS events so it texts you when things finish
+        bus.subscribe("swarm.consensus.reached", bridge.handle_system_event)
+        bus.subscribe("graph.step.success", bridge.handle_system_event)
+        bus.subscribe("os.system.idle", bridge.handle_system_event)
+
+        # Boot the polling daemon
+        bridge.start()
+    else:
+        print("[MAIN] Telegram bridge disabled: set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID.")
     
     # Start the sensory organs (Publishers)
     ClipboardWatcher(bus).start()
